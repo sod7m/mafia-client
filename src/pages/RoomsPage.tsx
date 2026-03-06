@@ -1,6 +1,6 @@
-﻿import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Hash, LogOut, Plus, RefreshCw, Users } from 'lucide-react'
+import { BookOpen, Hash, LogOut, Plus, RefreshCw, Users } from 'lucide-react'
 import { Modal } from '../components/Modal.tsx'
 import { useGame } from '../context/GameContext.tsx'
 import { MAX_PLAYERS_IN_ROOM, MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
@@ -74,62 +74,50 @@ export function RoomsPage() {
   return (
     <div className="page-shell px-5 py-8 sm:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <header className="surface-card rounded-2xl p-5">
+        <div>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.22em] text-red-400">LOBBY</p>
-              <h1 className="mt-1 text-3xl font-bold">Кімнати до старту гри</h1>
-              <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Ви увійшли як: {user?.nickname}</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Link to="/" className="btn-base btn-outline px-4 py-2 text-sm">
-                На головну
+            <h1 className="text-4xl font-bold text-red-500">Лобі</h1>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setError('')} className="btn-base btn-outline h-10 w-10 p-0" title="Оновити">
+                <RefreshCw className="h-5 w-5" />
+              </button>
+              <Link to="/rules" className="btn-base btn-outline h-10 w-10 p-0" title="Правила" aria-label="Правила">
+                <BookOpen className="h-5 w-5" />
               </Link>
-              <Link to="/rules" className="btn-base btn-outline px-4 py-2 text-sm">
-                Правила
-              </Link>
-              <button type="button" className="btn-base btn-danger px-4 py-2 text-sm" onClick={logoutToHome}>
-                <LogOut className="h-4 w-4" />
+              <button type="button" className="btn-base btn-outline px-6 py-2 text-base" onClick={logoutToHome}>
+                <LogOut className="h-5 w-5" />
                 Вийти
               </button>
             </div>
           </div>
-        </header>
+          <p className="mt-2 text-[hsl(var(--muted-foreground))]">
+            Привіт, <span className="text-[hsl(var(--foreground))]">{user?.nickname}</span>! Оберіть кімнату або створіть
+            нову
+          </p>
+        </div>
 
-        <section className="flex flex-wrap items-center gap-3">
+        <section className="flex flex-wrap gap-3">
           <button
             type="button"
             onClick={() => {
               setCreateModalOpen(true)
               setError('')
             }}
-            className="btn-base btn-primary px-4 py-2 text-sm"
+            className="btn-base btn-primary px-6 py-3 text-lg"
           >
-            <Plus className="h-4 w-4" />
-            Створити кімнату
+            <Plus className="h-5 w-5" />
+            Створити нову кімнату
           </button>
-
           <button
             type="button"
             onClick={() => {
               setJoinModalOpen(true)
               setError('')
             }}
-            className="btn-base btn-gold px-4 py-2 text-sm"
+            className="btn-base btn-gold px-6 py-3 text-lg"
           >
-            <Hash className="h-4 w-4" />
+            <Hash className="h-5 w-5" />
             Приєднатися по коду
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setError('')}
-            className="btn-base btn-outline px-4 py-2 text-sm"
-            title="Оновити"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Оновити вигляд
           </button>
         </section>
 
@@ -138,36 +126,30 @@ export function RoomsPage() {
         {availableRooms.length === 0 ? (
           <section className="surface-card rounded-2xl p-8 text-center">
             <Users className="mx-auto mb-4 h-14 w-14 text-[hsl(var(--muted-foreground))]" />
-            <h2 className="text-2xl font-bold">Наразі активних кімнат немає</h2>
+            <h2 className="text-2xl font-bold">Наразі немає активних кімнат</h2>
             <p className="mt-2 text-[hsl(var(--muted-foreground))]">Створіть першу кімнату або увійдіть через код.</p>
           </section>
         ) : (
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {availableRooms.map((room) => (
-              <article key={room.id} className="surface-card rounded-2xl p-5 transition hover:scale-[1.01] hover:border-red-500/50">
-                <div className="mb-4 flex items-start justify-between gap-3">
+              <article
+                key={room.id}
+                onClick={() => handleJoinFromList(room.id)}
+                className="surface-card room-card cursor-pointer rounded-2xl p-5"
+              >
+                <div className="space-y-4">
                   <div>
                     <h2 className="text-xl font-bold">{room.name}</h2>
-                    <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Код: {room.code}</p>
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">Код: {room.code}</p>
                   </div>
-                  <span className={`status-pill ${statusClass[room.status]}`}>Набір гравців</span>
+                  <div className="flex items-center justify-between">
+                    <div className="inline-flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
+                      <Users className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                      {room.players.length} / {room.maxPlayers}
+                    </div>
+                    <span className={`status-pill ${statusClass[room.status]}`}>Очікування</span>
+                  </div>
                 </div>
-
-                <div className="mb-5 flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background)/0.6)] px-3 py-2 text-sm">
-                  <span className="inline-flex items-center gap-2 text-[hsl(var(--muted-foreground))]">
-                    <Users className="h-4 w-4" />
-                    Учасники
-                  </span>
-                  <strong>{room.players.length + '/' + room.maxPlayers}</strong>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleJoinFromList(room.id)}
-                  className="btn-base btn-primary w-full px-4 py-2 text-sm"
-                >
-                  Приєднатися
-                </button>
               </article>
             ))}
           </section>
