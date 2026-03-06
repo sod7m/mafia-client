@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BookOpen, Hash, LogOut, Plus, RefreshCw, Users } from 'lucide-react'
+import { BookOpen, Check, Hash, Plus, RefreshCw, Users } from 'lucide-react'
 import { Modal } from '../components/Modal.tsx'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
@@ -17,17 +17,36 @@ const statusClass: Record<RoomStatus, string> = {
 
 export function RoomsPage() {
   const navigate = useNavigate()
-  const { availableRooms, createRoom, joinRoom, joinRoomByCode, logout, user } = useGame()
+  const { availableRooms, createRoom, joinRoom, joinRoomByCode, user } = useGame()
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [joinModalOpen, setJoinModalOpen] = useState(false)
   const [roomName, setRoomName] = useState('')
   const [maxPlayers, setMaxPlayers] = useState(10)
   const [joinCode, setJoinCode] = useState('')
   const [error, setError] = useState('')
+  const [refreshDone, setRefreshDone] = useState(false)
+  const refreshTimerRef = useRef<number | null>(null)
 
-  const logoutToHome = () => {
-    logout()
-    navigate('/')
+  useEffect(() => {
+    return () => {
+      if (refreshTimerRef.current) {
+        window.clearTimeout(refreshTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleRefresh = () => {
+    setError('')
+    setRefreshDone(true)
+
+    if (refreshTimerRef.current) {
+      window.clearTimeout(refreshTimerRef.current)
+    }
+
+    refreshTimerRef.current = window.setTimeout(() => {
+      setRefreshDone(false)
+      refreshTimerRef.current = null
+    }, 1000)
   }
 
   const handleCreateRoom = (event: FormEvent<HTMLFormElement>) => {
@@ -81,16 +100,23 @@ export function RoomsPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h1 className="text-4xl font-bold text-red-500">Лобі</h1>
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setError('')} className="btn-base btn-outline h-10 w-10 p-0" title="Оновити">
-                <RefreshCw className="h-5 w-5" />
+              <button
+                type="button"
+                onClick={handleRefresh}
+                className="btn-base btn-outline rooms-toolbar-icon h-10 w-10 p-0"
+                title={refreshDone ? 'Оновлено' : 'Оновити'}
+                aria-label={refreshDone ? 'Оновлено' : 'Оновити'}
+              >
+                {refreshDone ? <Check className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
               </button>
-              <Link to="/rules" className="btn-base btn-outline h-10 w-10 p-0" title="Правила" aria-label="Правила">
+              <Link
+                to="/rules"
+                className="btn-base btn-outline rooms-toolbar-icon h-10 w-10 p-0"
+                title="Правила"
+                aria-label="Правила"
+              >
                 <BookOpen className="h-5 w-5" />
               </Link>
-              <button type="button" className="btn-base btn-outline px-6 py-2 text-base" onClick={logoutToHome}>
-                <LogOut className="h-5 w-5" />
-                Вийти
-              </button>
             </div>
           </div>
           <p className="mt-2 text-[hsl(var(--muted-foreground))]">

@@ -123,7 +123,7 @@ export function RoomPage() {
                 <button
                   type="button"
                   onClick={leaveOnlyRoom}
-                  className="btn-base btn-danger btn-room w-full justify-center px-4 py-3 text-base"
+                  className="btn-base btn-danger btn-room room-leave-btn w-full justify-center px-4 py-3 text-base"
                 >
                   <LogOut className="h-4 w-4" />
                   Вийти з кімнати

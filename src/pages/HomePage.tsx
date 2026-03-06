@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Crown, Moon, Skull, Sun, User, Users, Video, Vote } from 'lucide-react'
 import { Modal } from '../components/Modal.tsx'
@@ -95,6 +95,118 @@ export function HomePage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [nickname, setNickname] = useState(user?.nickname ?? '')
   const [error, setError] = useState('')
+  const heroSectionRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    const elements = Array.from(document.querySelectorAll<HTMLElement>('.scroll-reveal'))
+    if (elements.length === 0) {
+      return
+    }
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReducedMotion || typeof IntersectionObserver === 'undefined') {
+      elements.forEach((element) => element.classList.add('is-visible'))
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      {
+        threshold: 0.18,
+        rootMargin: '0px 0px -10% 0px',
+      },
+    )
+
+    elements.forEach((element) => observer.observe(element))
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const heroElement = heroSectionRef.current
+    if (!heroElement) {
+      return
+    }
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const hasFinePointer = window.matchMedia('(pointer: fine)').matches
+    if (prefersReducedMotion) {
+      return
+    }
+
+    let rafId = 0
+    let ticking = false
+
+    const updateHeroParallax = () => {
+      ticking = false
+
+      const viewportHeight = Math.max(window.innerHeight, 1)
+      const progress = Math.min(Math.max(window.scrollY / (viewportHeight * 1.08), 0), 1.25)
+
+      heroElement.style.setProperty('--hero-cover-y', `${(progress * 72).toFixed(2)}px`)
+      heroElement.style.setProperty('--hero-cover-scale', (1 + progress * 0.09).toFixed(4))
+      heroElement.style.setProperty('--hero-content-y', `${(progress * 26).toFixed(2)}px`)
+      heroElement.style.setProperty('--hero-content-opacity', Math.max(0.54, 1 - progress * 0.52).toFixed(4))
+      heroElement.style.setProperty('--hero-glow-y', `${(progress * 40).toFixed(2)}px`)
+      heroElement.style.setProperty('--hero-glow-scale', (1 + progress * 0.28).toFixed(4))
+      heroElement.style.setProperty('--hero-smoke-y', `${(progress * 18).toFixed(2)}px`)
+      heroElement.style.setProperty('--hero-indicator-opacity', Math.max(0, 1 - progress * 1.75).toFixed(4))
+      heroElement.style.setProperty('--hero-indicator-y', `${Math.min(progress * 22, 22).toFixed(2)}px`)
+    }
+
+    const requestParallaxFrame = () => {
+      if (ticking) {
+        return
+      }
+
+      ticking = true
+      rafId = window.requestAnimationFrame(updateHeroParallax)
+    }
+
+    const onPointerMove = (event: PointerEvent) => {
+      const bounds = heroElement.getBoundingClientRect()
+      if (!bounds.width || !bounds.height) {
+        return
+      }
+
+      const x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1
+      const y = ((event.clientY - bounds.top) / bounds.height) * 2 - 1
+
+      heroElement.style.setProperty('--hero-pointer-x', x.toFixed(4))
+      heroElement.style.setProperty('--hero-pointer-y', y.toFixed(4))
+    }
+
+    const resetPointer = () => {
+      heroElement.style.setProperty('--hero-pointer-x', '0')
+      heroElement.style.setProperty('--hero-pointer-y', '0')
+    }
+
+    requestParallaxFrame()
+    if (hasFinePointer) {
+      heroElement.addEventListener('pointermove', onPointerMove, { passive: true })
+      heroElement.addEventListener('pointerleave', resetPointer)
+    }
+    window.addEventListener('scroll', requestParallaxFrame, { passive: true })
+    window.addEventListener('resize', requestParallaxFrame)
+
+    return () => {
+      if (hasFinePointer) {
+        heroElement.removeEventListener('pointermove', onPointerMove)
+        heroElement.removeEventListener('pointerleave', resetPointer)
+      }
+      window.removeEventListener('scroll', requestParallaxFrame)
+      window.removeEventListener('resize', requestParallaxFrame)
+      if (rafId) {
+        window.cancelAnimationFrame(rafId)
+      }
+    }
+  }, [])
 
   const openLogin = () => {
     setNickname(user?.nickname ?? '')
@@ -121,6 +233,17 @@ export function HomePage() {
     navigate('/rooms')
   }
 
+  const scrollToHowItWorks = () => {
+    const section = document.getElementById('how-it-works-section')
+    if (!section) {
+      return
+    }
+
+    const headerOffset = 96
+    const top = section.getBoundingClientRect().top + window.scrollY - headerOffset
+    window.scrollTo({ top, behavior: 'smooth' })
+  }
+
   return (
     <div className="page-shell">
       <SiteHeader
@@ -129,16 +252,19 @@ export function HomePage() {
         onPrimaryAction={user ? undefined : openLogin}
       />
 
-      <section id="hero-top" className="relative flex min-h-screen items-center justify-center overflow-hidden">
+      <section ref={heroSectionRef} id="hero-top" className="hero-scene relative flex min-h-screen items-center justify-center overflow-hidden">
         <div
-          className="hero-cover absolute inset-0"
+          className="hero-cover hero-parallax-cover absolute inset-0"
           style={{ backgroundImage: `url(${heroImage})` }}
           aria-hidden="true"
         >
           <div className="hero-overlay absolute inset-0" />
+          <div className="hero-noise-overlay absolute inset-0" />
+          <div className="hero-smoke-overlay absolute inset-0" />
+          <div className="hero-red-glow absolute bottom-0 left-1/2 h-[28rem] w-[28rem] rounded-full" />
         </div>
 
-        <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-10 pt-24 sm:px-8 sm:pt-28">
+        <div className="hero-parallax-content relative z-10 mx-auto w-full max-w-6xl px-5 pb-10 pt-24 sm:px-8 sm:pt-28">
           <div className="fade-in mx-auto max-w-4xl text-center">
             <div className="mb-6 flex justify-center">
               <div className="glow-pulse rounded-full bg-[hsl(var(--primary)/0.25)] p-6">
@@ -193,11 +319,22 @@ export function HomePage() {
             </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={scrollToHowItWorks}
+          className="hero-scroll-indicator"
+          aria-label="Прокрутити вниз до наступного блоку"
+        >
+          <span className="hero-scroll-mouse">
+            <span className="hero-scroll-wheel" />
+          </span>
+        </button>
       </section>
 
       <section id="how-it-works-section" className="px-5 pb-16 sm:px-8">
         <div className="mx-auto max-w-6xl">
-          <div className="slide-up mb-10 text-center">
+          <div className="scroll-reveal reveal-from-bottom mb-10 text-center">
             <h2 className="mb-2 text-3xl font-bold sm:text-4xl">
               Як грати в <span className="text-red-400">Мафію</span>
             </h2>
@@ -207,8 +344,11 @@ export function HomePage() {
           </div>
 
           <div className="mb-12 grid gap-5 md:grid-cols-3">
-            {gamePhases.map(({ icon: Icon, title, description, tone }) => (
-              <article key={title} className={`surface-card phase-card rounded-2xl p-6 text-center ${toneClassNames[tone].card}`}>
+            {gamePhases.map(({ icon: Icon, title, description, tone }, index) => (
+              <article
+                key={title}
+                className={`surface-card premium-card phase-card scroll-reveal reveal-from-bottom reveal-delay-${index + 1} rounded-2xl p-6 text-center ${toneClassNames[tone].card}`}
+              >
                 <div className="mb-4 flex justify-center">
                   <div className={toneClassNames[tone].bubble}>
                     <Icon className={`h-7 w-7 ${toneClassNames[tone].icon}`} />
@@ -221,10 +361,13 @@ export function HomePage() {
           </div>
 
           <div id="roles-section" className="mb-12">
-            <h3 className="mb-8 text-center text-3xl font-bold">Ролі в грі</h3>
+            <h3 className="scroll-reveal reveal-from-bottom mb-8 text-center text-3xl font-bold">Ролі в грі</h3>
             <div className="grid gap-5 md:grid-cols-3">
-              {roleCards.map(({ icon: Icon, title, description, tone }) => (
-                <article key={title} className={toneClassNames[tone].border}>
+              {roleCards.map(({ icon: Icon, title, description, tone }, index) => (
+                <article
+                  key={title}
+                  className={`${toneClassNames[tone].border} premium-card scroll-reveal ${index % 2 === 0 ? 'reveal-from-left' : 'reveal-from-right'} reveal-delay-${index + 1}`}
+                >
                   <div className="role-card-icon">
                     <Icon className={`h-5 w-5 ${toneClassNames[tone].icon}`} />
                   </div>
@@ -237,11 +380,14 @@ export function HomePage() {
             </div>
           </div>
 
-          <div className="surface-card rounded-2xl p-7 sm:p-8">
+          <div className="surface-card premium-card scroll-reveal reveal-from-bottom reveal-delay-2 rounded-2xl p-7 sm:p-8">
             <h3 className="mb-7 text-center text-3xl font-bold">Умови перемоги</h3>
             <div className="grid gap-7 md:grid-cols-2">
-              {victoryConditions.map(({ icon: Icon, title, description, tone }) => (
-                <article key={title} className="flex items-start gap-4">
+              {victoryConditions.map(({ icon: Icon, title, description, tone }, index) => (
+                <article
+                  key={title}
+                  className={`scroll-reveal ${index % 2 === 0 ? 'reveal-from-left' : 'reveal-from-right'} reveal-delay-${index + 1} flex items-start gap-4`}
+                >
                   <div className={toneClassNames[tone].miniBubble}>
                     <Icon className={`h-5 w-5 ${toneClassNames[tone].icon}`} />
                   </div>
