@@ -102,40 +102,34 @@ export function RoomPage() {
               <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Ваш nickname: {user?.nickname}</p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <span className={`status-pill ${statusClass[room.status]}`}>{roomStatusLabel[room.status]}</span>
-              <button type="button" onClick={leaveOnlyRoom} className="btn-base btn-outline btn-room px-4 py-3 text-base">
-                <ArrowLeft className="h-4 w-4" />
-                Вийти з кімнати
-              </button>
-              <button type="button" onClick={leaveCurrentRoomAndLogout} className="btn-base btn-danger btn-room px-4 py-3 text-base">
-                <LogOut className="h-4 w-4" />
-                Вийти
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="surface-muted rounded-xl px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Код кімнати</p>
-                  <p className="text-lg font-bold tracking-[0.08em]">{room.code}</p>
+            <div className="min-w-[280px] space-y-3">
+              <div className="flex items-center justify-end gap-3">
+                <div className="text-right">
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">Код кімнати</p>
+                  <p className="mt-1 text-4xl font-extrabold leading-none tracking-[0.08em] text-red-500">{room.code}</p>
                 </div>
                 <button
                   type="button"
                   onClick={copyRoomCode}
-                  className="btn-base btn-outline btn-room-icon"
+                  className="btn-base btn-outline h-12 w-12 rounded-2xl p-0"
                   aria-label="Скопіювати код кімнати"
                 >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
                 </button>
               </div>
-              {copied && <p className="mt-2 text-xs text-emerald-200">Код скопійовано</p>}
-            </div>
-            <div className="surface-muted rounded-xl px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Учасники</p>
-              <p className="text-lg font-bold">{room.players.length + '/' + room.maxPlayers}</p>
+              {copied && <p className="text-right text-xs text-emerald-200">Код скопійовано</p>}
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <span className={`status-pill ${statusClass[room.status]}`}>{roomStatusLabel[room.status]}</span>
+                <button type="button" onClick={leaveOnlyRoom} className="btn-base btn-outline btn-room px-4 py-3 text-base">
+                  <ArrowLeft className="h-4 w-4" />
+                  Вийти з кімнати
+                </button>
+                <button type="button" onClick={leaveCurrentRoomAndLogout} className="btn-base btn-danger btn-room px-4 py-3 text-base">
+                  <LogOut className="h-4 w-4" />
+                  Вийти
+                </button>
+              </div>
             </div>
           </div>
         </header>
@@ -210,7 +204,7 @@ export function RoomPage() {
             <div className="surface-muted mt-5 rounded-xl p-4 text-sm">
               <p className="mb-2 inline-flex items-center gap-2 font-semibold">
                 <Users className="h-4 w-4" />
-                Лічильник
+                Учасники
               </p>
               <p className="text-lg font-bold">{room.players.length + '/' + room.maxPlayers}</p>
             </div>
