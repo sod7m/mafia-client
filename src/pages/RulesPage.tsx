@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Activity, ArrowRight, BriefcaseMedical, Crown, Eye, Moon, Shield, Skull, Sun, Users, Vote } from 'lucide-react'
+import { useGame } from '../context/GameContext.tsx'
 
 const civilianRoles = [
   {
@@ -40,6 +41,8 @@ const mafiaRoles = [
 const nightOrder = ['Коханка', 'Лікар', 'Мафія', 'Комісар']
 
 export function RulesPage() {
+  const { user } = useGame()
+
   return (
     <div className="page-shell px-5 py-8 sm:px-8">
       <div className="mx-auto max-w-6xl">
@@ -56,9 +59,11 @@ export function RulesPage() {
               <Link to="/" className="btn-base btn-outline px-4 py-2 text-sm">
                 На головну
               </Link>
-              <Link to="/rooms" className="btn-base btn-primary px-4 py-2 text-sm">
-                До кімнат
-              </Link>
+              {user && (
+                <Link to="/rooms" className="btn-base btn-primary px-4 py-2 text-sm">
+                  До кімнат як {user.nickname}
+                </Link>
+              )}
             </div>
           </div>
         </header>
