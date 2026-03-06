@@ -3,13 +3,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Hash, LogOut, Plus, RefreshCw, Users } from 'lucide-react'
 import { Modal } from '../components/Modal.tsx'
 import { useGame } from '../context/GameContext.tsx'
-import { MAX_PLAYERS_IN_ROOM, MIN_PLAYERS_IN_ROOM, roomStatusLabel } from '../lib/roomStatus.ts'
+import { MAX_PLAYERS_IN_ROOM, MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
 import type { RoomStatus } from '../types/game.ts'
 
 const statusClass: Record<RoomStatus, string> = {
   waiting: 'status-waiting',
-  recruiting: 'status-recruiting',
-  preparation: 'status-preparation',
+  recruiting: 'status-waiting',
+  preparation: 'status-waiting',
   in_progress: 'status-in_progress',
   finished: 'status-finished',
 }
@@ -150,7 +150,7 @@ export function RoomsPage() {
                     <h2 className="text-xl font-bold">{room.name}</h2>
                     <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">Код: {room.code}</p>
                   </div>
-                  <span className={`status-pill ${statusClass[room.status]}`}>{roomStatusLabel[room.status]}</span>
+                  <span className={`status-pill ${statusClass[room.status]}`}>Набір гравців</span>
                 </div>
 
                 <div className="mb-5 flex items-center justify-between rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background)/0.6)] px-3 py-2 text-sm">
