@@ -360,6 +360,18 @@ a {
   background: hsl(var(--danger) / 0.18);
 }
 
+.btn-room {
+  min-height: 2.75rem;
+  border-radius: 0.6rem;
+}
+
+.btn-room-icon {
+  height: 2.75rem;
+  width: 2.75rem;
+  border-radius: 0.6rem;
+  padding: 0;
+}
+
 .status-pill {
   border-radius: 999px;
   padding: 0.25rem 0.6rem;

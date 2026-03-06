@@ -104,28 +104,39 @@ export function RoomPage() {
 
             <div className="flex flex-wrap gap-2">
               <span className={`status-pill ${statusClass[room.status]}`}>{roomStatusLabel[room.status]}</span>
-              <button type="button" onClick={leaveOnlyRoom} className="btn-base btn-outline px-3 py-2 text-sm">
+              <button type="button" onClick={leaveOnlyRoom} className="btn-base btn-outline btn-room px-4 py-3 text-base">
                 <ArrowLeft className="h-4 w-4" />
                 Вийти з кімнати
               </button>
-              <button type="button" onClick={leaveCurrentRoomAndLogout} className="btn-base btn-danger px-3 py-2 text-sm">
+              <button type="button" onClick={leaveCurrentRoomAndLogout} className="btn-base btn-danger btn-room px-4 py-3 text-base">
                 <LogOut className="h-4 w-4" />
                 Вийти
               </button>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            <div className="surface-muted rounded-xl px-3 py-2 text-sm">
-              Код: <strong>{room.code}</strong>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="surface-muted rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Код кімнати</p>
+                  <p className="text-lg font-bold tracking-[0.08em]">{room.code}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={copyRoomCode}
+                  className="btn-base btn-outline btn-room-icon"
+                  aria-label="Скопіювати код кімнати"
+                >
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </button>
+              </div>
+              {copied && <p className="mt-2 text-xs text-emerald-200">Код скопійовано</p>}
             </div>
-            <div className="surface-muted rounded-xl px-3 py-2 text-sm">
-              Учасники: <strong>{room.players.length + '/' + room.maxPlayers}</strong>
+            <div className="surface-muted rounded-xl px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.12em] text-[hsl(var(--muted-foreground))]">Учасники</p>
+              <p className="text-lg font-bold">{room.players.length + '/' + room.maxPlayers}</p>
             </div>
-            <button type="button" onClick={copyRoomCode} className="btn-base btn-outline rounded-xl px-3 py-2 text-sm">
-              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? 'Скопійовано' : 'Скопіювати код'}
-            </button>
           </div>
         </header>
 
@@ -139,7 +150,7 @@ export function RoomPage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-bold">Склад гравців</h2>
               {isOwner && room.status !== 'in_progress' && (
-                <button type="button" onClick={handleStartGame} className="btn-base btn-primary px-4 py-2 text-sm">
+                <button type="button" onClick={handleStartGame} className="btn-base btn-primary btn-room px-5 py-3 text-base">
                   <Play className="h-4 w-4" />
                   Почати гру
                 </button>
@@ -149,7 +160,7 @@ export function RoomPage() {
             {!isParticipant && (
               <div className="surface-muted mb-4 rounded-xl p-4">
                 <p className="text-sm text-[hsl(var(--muted-foreground))]">Ви ще не додані до списку учасників цієї кімнати.</p>
-                <button type="button" onClick={handleJoinRoom} className="btn-base btn-primary mt-3 px-4 py-2 text-sm">
+                <button type="button" onClick={handleJoinRoom} className="btn-base btn-primary btn-room mt-3 px-5 py-3 text-base">
                   Приєднатися до кімнати
                 </button>
               </div>
@@ -204,7 +215,7 @@ export function RoomPage() {
               <p className="text-lg font-bold">{room.players.length + '/' + room.maxPlayers}</p>
             </div>
 
-            <Link to="/rooms" className="btn-base btn-outline mt-4 w-full px-4 py-2 text-sm">
+            <Link to="/rooms" className="btn-base btn-outline btn-room mt-4 w-full px-4 py-3 text-base">
               Повернутися до всіх кімнат
             </Link>
           </aside>
