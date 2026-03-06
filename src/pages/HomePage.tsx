@@ -127,7 +127,6 @@ export function HomePage() {
         fixed
         transparentOnScroll
         onPrimaryAction={user ? () => navigate('/rooms') : openLogin}
-        primaryLabel="PLAY NOW"
       />
 
       <section id="hero-top" className="relative flex min-h-screen items-center justify-center overflow-hidden">

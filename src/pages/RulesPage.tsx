@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
 import { Activity, ArrowRight, BriefcaseMedical, Crown, Eye, Moon, Shield, Skull, Sun, Users, Vote } from 'lucide-react'
-import { SiteFooter } from '../components/SiteFooter.tsx'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
 
@@ -212,7 +211,6 @@ export function RulesPage() {
         </section>
         </div>
       </div>
-      <SiteFooter />
     </div>
   )
 }

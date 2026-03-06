@@ -14,11 +14,12 @@ export function SiteHeader({
   fixed = false,
   transparentOnScroll = false,
   onPrimaryAction,
-  primaryLabel = 'PLAY NOW',
+  primaryLabel,
 }: SiteHeaderProps) {
   const navigate = useNavigate()
   const { user } = useGame()
   const [isScrolled, setIsScrolled] = useState(false)
+  const resolvedPrimaryLabel = primaryLabel ?? (user ? 'ROOMS' : 'PLAY NOW')
 
   useEffect(() => {
     if (!transparentOnScroll) {
@@ -65,23 +66,10 @@ export function SiteHeader({
           MAFIA
         </Link>
 
-        <nav className="site-topbar-menu">
-          <Link to="/" className="site-topbar-link">
-            Home
-          </Link>
-          <Link to="/rules" className="site-topbar-link">
-            Rules
-          </Link>
-          <Link to="/rooms" className="site-topbar-link">
-            Rooms
-          </Link>
-        </nav>
-
         <button type="button" onClick={handlePrimaryClick} className="site-topbar-cta">
-          {primaryLabel}
+          {resolvedPrimaryLabel}
         </button>
       </div>
     </header>
   )
 }
-

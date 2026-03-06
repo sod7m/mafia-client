@@ -1,7 +1,6 @@
 ﻿import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Copy, LogOut, Play, UserRound, Users } from 'lucide-react'
-import { SiteFooter } from '../components/SiteFooter.tsx'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
 import { roomStatusLabel } from '../lib/roomStatus.ts'
@@ -40,7 +39,6 @@ export function RoomPage() {
             </Link>
           </div>
         </div>
-        <SiteFooter />
       </div>
     )
   }
@@ -213,7 +211,6 @@ export function RoomPage() {
         </section>
         </div>
       </div>
-      <SiteFooter />
     </div>
   )
 }
