@@ -84,6 +84,96 @@ a {
   color: transparent;
 }
 
+.site-topbar {
+  width: 100%;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  background: hsl(var(--background) / 0.94);
+  transition: background-color 0.25s ease, border-color 0.25s ease, backdrop-filter 0.25s ease;
+}
+
+.site-topbar.is-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+}
+
+.site-topbar.is-transparent {
+  backdrop-filter: blur(4px);
+}
+
+.site-topbar.is-transparent.is-scrolled {
+  background: hsl(var(--background) / 0.78);
+  border-bottom-color: hsl(var(--border) / 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.site-topbar-inner {
+  margin: 0 auto;
+  display: flex;
+  max-width: 72rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+}
+
+.site-topbar-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: hsl(var(--secondary));
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-topbar-menu {
+  display: none;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.site-topbar-link {
+  border: 0;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  font-size: 0.97rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.site-topbar-link:hover {
+  color: hsl(var(--foreground));
+}
+
+.site-topbar-cta {
+  border: 0;
+  border-radius: 0.4rem;
+  background: var(--gradient-primary);
+  color: hsl(var(--foreground));
+  box-shadow: var(--shadow-glow);
+  padding: 0.78rem 1.5rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: filter 0.2s ease;
+}
+
+.site-topbar-cta:hover {
+  filter: brightness(1.08);
+}
+
+@media (min-width: 900px) {
+  .site-topbar-menu {
+    display: inline-flex;
+  }
+}
+
 .surface-card {
   border: 1px solid hsl(var(--border));
   background: var(--gradient-card);

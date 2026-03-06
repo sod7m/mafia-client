@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Activity, ArrowRight, BriefcaseMedical, Crown, Eye, Moon, Shield, Skull, Sun, Users, Vote } from 'lucide-react'
+import { SiteFooter } from '../components/SiteFooter.tsx'
+import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
 
 const civilianRoles = [
@@ -44,8 +46,10 @@ export function RulesPage() {
   const { user } = useGame()
 
   return (
-    <div className="page-shell px-5 py-8 sm:px-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="page-shell">
+      <SiteHeader />
+      <div className="px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-6xl">
         <header className="surface-card mb-7 rounded-2xl p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -206,7 +210,9 @@ export function RulesPage() {
             Важливо: коханка вважається частиною мафії.
           </p>
         </section>
+        </div>
       </div>
+      <SiteFooter />
     </div>
   )
 }

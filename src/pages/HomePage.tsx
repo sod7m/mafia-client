@@ -1,7 +1,9 @@
-﻿import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Crown, Flag, Heart, Moon, Skull, Sun, User, Users, Video, Vote } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Crown, Moon, Skull, Sun, User, Users, Video, Vote } from 'lucide-react'
 import { Modal } from '../components/Modal.tsx'
+import { SiteFooter } from '../components/SiteFooter.tsx'
+import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
 import { MAX_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
 import heroImage from '../assets/hero-bg.jpg'
@@ -121,7 +123,14 @@ export function HomePage() {
 
   return (
     <div className="page-shell">
-      <section className="relative flex min-h-screen items-center justify-center overflow-hidden">
+      <SiteHeader
+        fixed
+        transparentOnScroll
+        onPrimaryAction={user ? () => navigate('/rooms') : openLogin}
+        primaryLabel="PLAY NOW"
+      />
+
+      <section id="hero-top" className="relative flex min-h-screen items-center justify-center overflow-hidden">
         <div
           className="hero-cover absolute inset-0"
           style={{ backgroundImage: `url(${heroImage})` }}
@@ -130,7 +139,7 @@ export function HomePage() {
           <div className="hero-overlay absolute inset-0" />
         </div>
 
-        <div className="relative z-10 mx-auto w-full max-w-6xl px-5 py-10 sm:px-8">
+        <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-10 pt-24 sm:px-8 sm:pt-28">
           <div className="fade-in mx-auto max-w-4xl text-center">
             <div className="mb-6 flex justify-center">
               <div className="glow-pulse rounded-full bg-[hsl(var(--primary)/0.25)] p-6">
@@ -187,7 +196,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <section className="px-5 pb-16 sm:px-8">
+      <section id="how-it-works-section" className="px-5 pb-16 sm:px-8">
         <div className="mx-auto max-w-6xl">
           <div className="slide-up mb-10 text-center">
             <h2 className="mb-2 text-3xl font-bold sm:text-4xl">
@@ -212,7 +221,7 @@ export function HomePage() {
             ))}
           </div>
 
-          <div className="mb-12">
+          <div id="roles-section" className="mb-12">
             <h3 className="mb-8 text-center text-3xl font-bold">Ролі в грі</h3>
             <div className="grid gap-5 md:grid-cols-3">
               {roleCards.map(({ icon: Icon, title, description, tone }) => (
@@ -248,25 +257,7 @@ export function HomePage() {
         </div>
       </section>
 
-      <footer className="border-t border-[hsl(var(--border))] bg-[hsl(var(--card)/0.5)] px-5 py-6 backdrop-blur-sm sm:px-8">
-        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 text-sm text-[hsl(var(--muted-foreground))] md:flex-row">
-          <p className="text-center md:text-left">
-            © 2024 Mafia Game. Створено з <Heart className="inline h-4 w-4 text-red-400" fill="currentColor" /> для
-            любителів гри
-          </p>
-          <nav className="flex items-center gap-6">
-            <Link to="/rules" className="transition-colors hover:text-[hsl(var(--foreground))]">
-              Правила
-            </Link>
-            <a href="#" className="transition-colors hover:text-[hsl(var(--foreground))]">
-              Підтримка
-            </a>
-            <a href="#" className="transition-colors hover:text-[hsl(var(--foreground))]" aria-label="Підтримка">
-              <Flag className="h-4 w-4" />
-            </a>
-          </nav>
-        </div>
-      </footer>
+      <SiteFooter />
 
       <Modal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} title="Вхід у гру">
         <form className="space-y-4" onSubmit={submitNickname}>

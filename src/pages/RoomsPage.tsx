@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen, Hash, LogOut, Plus, RefreshCw, Users } from 'lucide-react'
 import { Modal } from '../components/Modal.tsx'
+import { SiteFooter } from '../components/SiteFooter.tsx'
+import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
 import { MAX_PLAYERS_IN_ROOM, MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
 import type { RoomStatus } from '../types/game.ts'
@@ -72,8 +74,10 @@ export function RoomsPage() {
   }
 
   return (
-    <div className="page-shell px-5 py-8 sm:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="page-shell">
+      <SiteHeader />
+      <div className="px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h1 className="text-4xl font-bold text-red-500">Лобі</h1>
@@ -154,7 +158,9 @@ export function RoomsPage() {
             ))}
           </section>
         )}
+        </div>
       </div>
+      <SiteFooter />
 
       <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Створити кімнату">
         <form className="space-y-4" onSubmit={handleCreateRoom}>

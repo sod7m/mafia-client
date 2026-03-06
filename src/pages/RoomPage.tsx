@@ -1,6 +1,8 @@
 ﻿import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Check, Copy, LogOut, Play, UserRound, Users } from 'lucide-react'
+import { SiteFooter } from '../components/SiteFooter.tsx'
+import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
 import { roomStatusLabel } from '../lib/roomStatus.ts'
 import type { RoomStatus } from '../types/game.ts'
@@ -27,14 +29,18 @@ export function RoomPage() {
 
   if (!room) {
     return (
-      <div className="page-shell grid place-items-center p-5">
-        <div className="surface-card w-full max-w-lg rounded-2xl p-6 text-center">
-          <h1 className="text-3xl font-bold">Кімнату не знайдено</h1>
-          <p className="mt-3 text-[hsl(var(--muted-foreground))]">Можливо, вона вже видалена або недоступна.</p>
-          <Link to="/rooms" className="btn-base btn-primary mt-5 px-4 py-2 text-sm">
-            Повернутися до списку кімнат
-          </Link>
+      <div className="page-shell">
+        <SiteHeader />
+        <div className="grid min-h-[calc(100vh-150px)] place-items-center p-5">
+          <div className="surface-card w-full max-w-lg rounded-2xl p-6 text-center">
+            <h1 className="text-3xl font-bold">Кімнату не знайдено</h1>
+            <p className="mt-3 text-[hsl(var(--muted-foreground))]">Можливо, вона вже видалена або недоступна.</p>
+            <Link to="/rooms" className="btn-base btn-primary mt-5 px-4 py-2 text-sm">
+              Повернутися до списку кімнат
+            </Link>
+          </div>
         </div>
+        <SiteFooter />
       </div>
     )
   }
@@ -86,8 +92,10 @@ export function RoomPage() {
   }
 
   return (
-    <div className="page-shell px-5 py-8 sm:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <div className="page-shell">
+      <SiteHeader />
+      <div className="px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
         <header className="surface-card rounded-2xl p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -203,7 +211,9 @@ export function RoomPage() {
             </Link>
           </aside>
         </section>
+        </div>
       </div>
+      <SiteFooter />
     </div>
   )
 }
