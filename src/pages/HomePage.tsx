@@ -126,7 +126,7 @@ export function HomePage() {
       <SiteHeader
         fixed
         transparentOnScroll
-        onPrimaryAction={user ? () => navigate('/rooms') : openLogin}
+        onPrimaryAction={user ? undefined : openLogin}
       />
 
       <section id="hero-top" className="relative flex min-h-screen items-center justify-center overflow-hidden">

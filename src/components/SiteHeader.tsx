@@ -17,9 +17,9 @@ export function SiteHeader({
   primaryLabel,
 }: SiteHeaderProps) {
   const navigate = useNavigate()
-  const { user } = useGame()
+  const { user, logout } = useGame()
   const [isScrolled, setIsScrolled] = useState(false)
-  const resolvedPrimaryLabel = primaryLabel ?? (user ? 'ROOMS' : 'PLAY NOW')
+  const resolvedPrimaryLabel = primaryLabel ?? (user ? 'LOGOUT' : 'PLAY NOW')
 
   useEffect(() => {
     if (!transparentOnScroll) {
@@ -51,7 +51,8 @@ export function SiteHeader({
     }
 
     if (user) {
-      navigate('/rooms')
+      logout()
+      navigate('/')
       return
     }
 

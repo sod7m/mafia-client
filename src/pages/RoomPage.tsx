@@ -1,6 +1,6 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Check, Copy, LogOut, Play, UserRound, Users } from 'lucide-react'
+import { Check, Copy, LogOut, Play, UserRound, Users } from 'lucide-react'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
 import { roomStatusLabel } from '../lib/roomStatus.ts'
@@ -17,7 +17,7 @@ const statusClass: Record<RoomStatus, string> = {
 export function RoomPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { getRoomById, joinRoom, leaveRoom, logout, startRoom, user } = useGame()
+  const { getRoomById, joinRoom, leaveRoom, startRoom, user } = useGame()
   const [pageError, setPageError] = useState('')
   const [startFeedback, setStartFeedback] = useState('')
   const [copied, setCopied] = useState(false)
@@ -25,6 +25,12 @@ export function RoomPage() {
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const isParticipant = !!(room && user && room.players.some((player) => player.id === user.id))
   const isOwner = !!(room && user && room.ownerId === user.id)
+  const roomStatusBadge =
+    room && (room.status === 'waiting' || room.status === 'recruiting' || room.status === 'preparation')
+      ? { label: 'Очікування', className: 'status-waiting' }
+      : room
+        ? { label: roomStatusLabel[room.status], className: statusClass[room.status] }
+        : null
 
   if (!room) {
     return (
@@ -41,14 +47,6 @@ export function RoomPage() {
         </div>
       </div>
     )
-  }
-
-  const leaveCurrentRoomAndLogout = () => {
-    if (id) {
-      leaveRoom(id)
-    }
-    logout()
-    navigate('/')
   }
 
   const leaveOnlyRoom = () => {
@@ -100,34 +98,35 @@ export function RoomPage() {
               <p className="text-xs font-semibold tracking-[0.22em] text-red-400">ROOM</p>
               <h1 className="mt-1 text-3xl font-bold">{room.name}</h1>
               <p className="mt-2 text-sm text-[hsl(var(--muted-foreground))]">Ваш nickname: {user?.nickname}</p>
+              <div className="mt-2">
+                {roomStatusBadge && <span className={`status-pill ${roomStatusBadge.className}`}>{roomStatusBadge.label}</span>}
+              </div>
             </div>
 
-            <div className="min-w-[280px] space-y-3">
+            <div className="w-full max-w-[260px] space-y-3">
               <div className="flex items-center justify-end gap-3">
                 <div className="text-right">
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">Код кімнати</p>
-                  <p className="mt-1 text-4xl font-extrabold leading-none tracking-[0.08em] text-red-500">{room.code}</p>
+                  <p className="mt-1 text-3xl font-extrabold leading-none tracking-[0.04em] text-red-500">{room.code}</p>
                 </div>
                 <button
                   type="button"
                   onClick={copyRoomCode}
-                  className="btn-base btn-outline h-12 w-12 rounded-2xl p-0"
+                  className="btn-base room-copy-btn"
                   aria-label="Скопіювати код кімнати"
                 >
                   {copied ? <Check className="h-5 w-5" /> : <Copy className="h-5 w-5" />}
                 </button>
               </div>
-              {copied && <p className="text-right text-xs text-emerald-200">Код скопійовано</p>}
 
               <div className="flex flex-wrap justify-end gap-2">
-                <span className={`status-pill ${statusClass[room.status]}`}>{roomStatusLabel[room.status]}</span>
-                <button type="button" onClick={leaveOnlyRoom} className="btn-base btn-outline btn-room px-4 py-3 text-base">
-                  <ArrowLeft className="h-4 w-4" />
-                  Вийти з кімнати
-                </button>
-                <button type="button" onClick={leaveCurrentRoomAndLogout} className="btn-base btn-danger btn-room px-4 py-3 text-base">
+                <button
+                  type="button"
+                  onClick={leaveOnlyRoom}
+                  className="btn-base btn-danger btn-room w-full justify-center px-4 py-3 text-base"
+                >
                   <LogOut className="h-4 w-4" />
-                  Вийти
+                  Вийти з кімнати
                 </button>
               </div>
             </div>
@@ -209,9 +208,6 @@ export function RoomPage() {
               <p className="text-lg font-bold">{room.players.length + '/' + room.maxPlayers}</p>
             </div>
 
-            <Link to="/rooms" className="btn-base btn-outline btn-room mt-4 w-full px-4 py-3 text-base">
-              Повернутися до всіх кімнат
-            </Link>
           </aside>
         </section>
         </div>
@@ -219,3 +215,4 @@ export function RoomPage() {
     </div>
   )
 }
+
