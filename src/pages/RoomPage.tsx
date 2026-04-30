@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Check, Copy, LogOut, Play, UserRound, Users } from 'lucide-react'
 import { SiteHeader } from '../components/SiteHeader.tsx'
@@ -17,14 +17,13 @@ const statusClass: Record<RoomStatus, string> = {
 export function RoomPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { getRoomById, joinRoom, leaveRoom, startRoom, user } = useGame()
+  const { apiError, getRoomById, isLoading, joinRoom, leaveRoom, loadRoom, startRoom, user } = useGame()
   const [pageError, setPageError] = useState('')
-  const [startFeedback, setStartFeedback] = useState('')
   const [copied, setCopied] = useState(false)
 
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const isParticipant = !!(room && user && room.players.some((player) => player.id === user.id))
-  const isOwner = !!(room && user && room.ownerId === user.id)
+  const isRoomOwner = !!(room && user && room.ownerId === user.id)
   const roomStatusBadge =
     room && (room.status === 'waiting' || room.status === 'recruiting' || room.status === 'preparation')
       ? { label: 'Очікування', className: 'status-waiting' }
@@ -32,7 +31,48 @@ export function RoomPage() {
         ? { label: roomStatusLabel[room.status], className: statusClass[room.status] }
         : null
 
+  useEffect(() => {
+    if (!id || room) {
+      return
+    }
+
+    void loadRoom(id)
+  }, [id, loadRoom, room])
+
+  useEffect(() => {
+    if (!id || !room) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => {
+      void loadRoom(id, { silent: true })
+    }, 3000)
+
+    return () => window.clearInterval(intervalId)
+  }, [id, loadRoom, room])
+
+  useEffect(() => {
+    if (!room || !isParticipant || room.status !== 'in_progress') {
+      return
+    }
+
+    navigate(`/room/${room.id}/game`)
+  }, [isParticipant, navigate, room])
+
   if (!room) {
+    if (isLoading) {
+      return (
+        <div className="page-shell">
+          <SiteHeader />
+          <div className="grid min-h-[calc(100vh-150px)] place-items-center p-5">
+            <div className="surface-card w-full max-w-lg rounded-2xl p-6 text-center">
+              <h1 className="text-3xl font-bold">Завантаження кімнати...</h1>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="page-shell">
         <SiteHeader />
@@ -49,15 +89,15 @@ export function RoomPage() {
     )
   }
 
-  const leaveOnlyRoom = () => {
+  const leaveOnlyRoom = async () => {
     if (id) {
-      leaveRoom(id)
+      await leaveRoom(id)
     }
     navigate('/rooms')
   }
 
-  const handleJoinRoom = () => {
-    const result = joinRoom(room.id)
+  const handleJoinRoom = async () => {
+    const result = await joinRoom(room.id)
     if (!result.ok) {
       setPageError(result.error ?? 'Не вдалося приєднатися до кімнати.')
       return
@@ -66,15 +106,15 @@ export function RoomPage() {
     setPageError('')
   }
 
-  const handleStartGame = () => {
-    const result = startRoom(room.id)
+  const handleStartGame = async () => {
+    const result = await startRoom(room.id)
     if (!result.ok) {
       setPageError(result.error ?? 'Не вдалося почати гру.')
       return
     }
 
     setPageError('')
-    setStartFeedback('Гру запущено. Цей етап завершується на моменті старту партії.')
+    navigate(`/room/${room.id}/game`)
   }
 
   const copyRoomCode = async () => {
@@ -133,20 +173,27 @@ export function RoomPage() {
           </div>
         </header>
 
-        {pageError && <p className="rounded-xl border border-red-500/45 bg-red-900/30 px-4 py-3 text-sm text-red-100">{pageError}</p>}
-        {startFeedback && (
-          <p className="rounded-xl border border-emerald-500/45 bg-emerald-900/25 px-4 py-3 text-sm text-emerald-100">{startFeedback}</p>
+        {(pageError || apiError) && (
+          <p className="rounded-xl border border-red-500/45 bg-red-900/30 px-4 py-3 text-sm text-red-100">
+            {pageError || apiError}
+          </p>
         )}
-
         <section className="grid gap-5 lg:grid-cols-[2fr_1fr]">
           <article className="surface-card rounded-2xl p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-bold">Склад гравців</h2>
-              {isOwner && room.status !== 'in_progress' && (
+              {room.status !== 'in_progress' && isRoomOwner ? (
                 <button type="button" onClick={handleStartGame} className="btn-base btn-primary btn-room px-5 py-3 text-base">
                   <Play className="h-4 w-4" />
-                  Почати гру
+                  Демо старт
                 </button>
+              ) : room.status !== 'in_progress' ? (
+                <span className="status-pill status-waiting px-4 py-3">Очікуємо власника</span>
+              ) : (
+                <Link to={`/room/${room.id}/game`} className="btn-base btn-primary btn-room px-5 py-3 text-base">
+                  <Play className="h-4 w-4" />
+                  Перейти до гри
+                </Link>
               )}
             </div>
 
@@ -195,9 +242,9 @@ export function RoomPage() {
           <aside className="surface-card rounded-2xl p-5">
             <h3 className="mb-3 text-xl font-bold">Стан кімнати</h3>
             <ul className="space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
-              <li>• Кімната доступна, доки власник не натисне «Почати гру».</li>
+              <li>• Кімната доступна, доки власник не натисне «Демо старт».</li>
               <li>• Після старту вона зникає зі списку загальних кімнат.</li>
-              <li>• Кнопка старту доступна тільки власнику.</li>
+              <li>• Старт і керування фазами доступні тільки власнику кімнати.</li>
             </ul>
 
             <div className="surface-muted mt-5 rounded-xl p-4 text-sm">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { BookOpen, Check, Hash, Plus, RefreshCw, Users } from 'lucide-react'
+import { BookOpen, Check, Hash, Play, Plus, RefreshCw, Users } from 'lucide-react'
 import { Modal } from '../components/Modal.tsx'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
@@ -17,7 +17,17 @@ const statusClass: Record<RoomStatus, string> = {
 
 export function RoomsPage() {
   const navigate = useNavigate()
-  const { availableRooms, createRoom, joinRoom, joinRoomByCode, user } = useGame()
+  const {
+    apiError,
+    availableRooms,
+    createRoom,
+    isLoading,
+    joinRoom,
+    joinRoomByCode,
+    refreshRooms,
+    startRoom,
+    user,
+  } = useGame()
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [joinModalOpen, setJoinModalOpen] = useState(false)
   const [roomName, setRoomName] = useState('')
@@ -35,8 +45,14 @@ export function RoomsPage() {
     }
   }, [])
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setError('')
+    const result = await refreshRooms()
+    if (!result.ok) {
+      setError(result.error ?? 'Не вдалося оновити список кімнат.')
+      return
+    }
+
     setRefreshDone(true)
 
     if (refreshTimerRef.current) {
@@ -49,9 +65,9 @@ export function RoomsPage() {
     }, 1000)
   }
 
-  const handleCreateRoom = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateRoom = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const result = createRoom(roomName, maxPlayers)
+    const result = await createRoom(roomName, maxPlayers)
 
     if (!result.ok || !result.roomId) {
       setError(result.error ?? 'Не вдалося створити кімнату.')
@@ -65,9 +81,9 @@ export function RoomsPage() {
     navigate(`/room/${result.roomId}`)
   }
 
-  const handleJoinByCode = (event: FormEvent<HTMLFormElement>) => {
+  const handleJoinByCode = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const result = joinRoomByCode(joinCode)
+    const result = await joinRoomByCode(joinCode)
 
     if (!result.ok || !result.roomId) {
       setError(result.error ?? 'Не вдалося приєднатися до кімнати.')
@@ -80,8 +96,8 @@ export function RoomsPage() {
     navigate(`/room/${result.roomId}`)
   }
 
-  const handleJoinFromList = (roomId: string) => {
-    const result = joinRoom(roomId)
+  const handleJoinFromList = async (roomId: string) => {
+    const result = await joinRoom(roomId)
     if (!result.ok || !result.roomId) {
       setError(result.error ?? 'Не вдалося приєднатися до кімнати.')
       return
@@ -89,6 +105,17 @@ export function RoomsPage() {
 
     setError('')
     navigate(`/room/${result.roomId}`)
+  }
+
+  const handleForceStartFromList = async (roomId: string) => {
+    const result = await startRoom(roomId)
+    if (!result.ok || !result.roomId) {
+      setError(result.error ?? 'Не вдалося запустити кімнату.')
+      return
+    }
+
+    setError('')
+    navigate(`/room/${result.roomId}/game`)
   }
 
   return (
@@ -150,7 +177,11 @@ export function RoomsPage() {
           </button>
         </section>
 
-        {error && <p className="rounded-xl border border-red-500/45 bg-red-900/30 px-4 py-3 text-sm text-red-100">{error}</p>}
+        {(error || apiError) && (
+          <p className="rounded-xl border border-red-500/45 bg-red-900/30 px-4 py-3 text-sm text-red-100">
+            {error || apiError}
+          </p>
+        )}
 
         {availableRooms.length === 0 ? (
           <section className="surface-card rounded-2xl p-8 text-center">
@@ -178,6 +209,17 @@ export function RoomsPage() {
                     </div>
                     <span className={`status-pill ${statusClass[room.status]}`}>Очікування</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleForceStartFromList(room.id)
+                    }}
+                    className="btn-base btn-primary btn-room w-full px-4 py-3 text-sm"
+                  >
+                    <Play className="h-4 w-4" />
+                    Демо старт
+                  </button>
                 </div>
               </article>
             ))}
@@ -222,8 +264,12 @@ export function RoomsPage() {
             </div>
           </div>
 
-          <button type="submit" className="btn-base btn-primary w-full px-4 py-2 text-sm">
-            Створити та перейти
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="btn-base btn-primary w-full px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
+          >
+            {isLoading ? 'Створення...' : 'Створити та перейти'}
           </button>
         </form>
       </Modal>
@@ -245,9 +291,13 @@ export function RoomsPage() {
             />
           </div>
 
-          <button type="submit" className="btn-base btn-gold w-full px-4 py-2 text-sm">
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="btn-base btn-gold w-full px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
+          >
             <Hash className="h-4 w-4" />
-            Увійти в кімнату
+            {isLoading ? 'Вхід...' : 'Увійти в кімнату'}
           </button>
         </form>
       </Modal>

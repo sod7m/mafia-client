@@ -1,7 +1,7 @@
 import type { RoomStatus } from '../types/game.ts'
 
 export const MAX_PLAYERS_IN_ROOM = 16
-export const MIN_PLAYERS_IN_ROOM = 4
+export const MIN_PLAYERS_IN_ROOM = 6
 
 export const LOBBY_STATUSES: RoomStatus[] = ['waiting', 'preparation', 'recruiting']
 

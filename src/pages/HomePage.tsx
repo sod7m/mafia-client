@@ -95,6 +95,7 @@ export function HomePage() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [nickname, setNickname] = useState(user?.nickname ?? '')
   const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const heroSectionRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -214,7 +215,7 @@ export function HomePage() {
     setIsLoginOpen(true)
   }
 
-  const submitNickname = (event: FormEvent<HTMLFormElement>) => {
+  const submitNickname = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const cleanNickname = nickname.trim()
 
@@ -228,7 +229,15 @@ export function HomePage() {
       return
     }
 
-    login(cleanNickname)
+    setIsSubmitting(true)
+    const result = await login(cleanNickname)
+    setIsSubmitting(false)
+
+    if (!result.ok) {
+      setError(result.error ?? 'Не вдалося увійти.')
+      return
+    }
+
     setIsLoginOpen(false)
     navigate('/rooms')
   }
@@ -423,8 +432,12 @@ export function HomePage() {
             />
             {error && <p className="text-sm text-red-300">{error}</p>}
           </div>
-          <button type="submit" className="btn-base btn-primary w-full px-4 py-2 text-sm">
-            Увійти та перейти до кімнат
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="btn-base btn-primary w-full px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
+          >
+            {isSubmitting ? 'Вхід...' : 'Увійти та перейти до кімнат'}
           </button>
         </form>
       </Modal>

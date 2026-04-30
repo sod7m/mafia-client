@@ -629,6 +629,22 @@ a {
   color: hsl(var(--muted-foreground));
 }
 
+@keyframes phaseOverlay {
+  0% {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  18%,
+  72% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
 .fade-in {
   animation: fadeIn 0.55s ease-out;
 }

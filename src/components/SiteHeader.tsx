@@ -44,14 +44,14 @@ export function SiteHeader({
     .filter(Boolean)
     .join(' ')
 
-  const handlePrimaryClick = () => {
+  const handlePrimaryClick = async () => {
     if (onPrimaryAction) {
       onPrimaryAction()
       return
     }
 
     if (user) {
-      logout()
+      await logout()
       navigate('/')
       return
     }

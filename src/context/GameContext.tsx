@@ -5,35 +5,49 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
-import {
-  deriveLobbyStatus,
-  LOBBY_STATUSES,
-  MAX_PLAYERS_IN_ROOM,
-  MIN_PLAYERS_IN_ROOM,
-} from '../lib/roomStatus.ts'
-import type { ActionResult, Room, RoomPlayer, UserSession } from '../types/game.ts'
+import { LOBBY_STATUSES } from '../lib/roomStatus.ts'
+import { api, ApiError, WS_URL } from '../lib/api.ts'
+import type { ActionResult, Game, GameActionType, GamePhase, Room, UserSession } from '../types/game.ts'
 
 interface GameContextValue {
   user: UserSession | null
   rooms: Room[]
+  games: Record<string, Game>
   availableRooms: Room[]
-  login: (nickname: string) => void
-  logout: () => void
-  createRoom: (roomName: string, maxPlayers: number) => ActionResult
-  joinRoom: (roomId: string) => ActionResult
-  joinRoomByCode: (code: string) => ActionResult
-  leaveRoom: (roomId: string) => ActionResult
-  startRoom: (roomId: string) => ActionResult
+  isLoading: boolean
+  apiError: string
+  login: (nickname: string) => Promise<ActionResult>
+  logout: () => Promise<void>
+  refreshRooms: () => Promise<ActionResult>
+  loadRoom: (roomId: string, options?: { silent?: boolean }) => Promise<ActionResult>
+  loadGame: (roomId: string, options?: { silent?: boolean }) => Promise<ActionResult>
+  setGamePhase: (roomId: string, phase: GamePhase) => Promise<ActionResult>
+  submitGameAction: (roomId: string, type: GameActionType, targetId: string) => Promise<ActionResult>
+  createRoom: (roomName: string, maxPlayers: number) => Promise<ActionResult>
+  joinRoom: (roomId: string) => Promise<ActionResult>
+  joinRoomByCode: (code: string) => Promise<ActionResult>
+  leaveRoom: (roomId: string) => Promise<ActionResult>
+  startRoom: (roomId: string) => Promise<ActionResult>
   getRoomById: (roomId: string) => Room | undefined
+  getGameByRoomId: (roomId: string) => Game | undefined
 }
 
 const GameContext = createContext<GameContextValue | null>(null)
 
 const USER_STORAGE_KEY = 'mafia:user'
-const ROOMS_STORAGE_KEY = 'mafia:rooms'
+const TOKEN_STORAGE_KEY = 'mafia:token'
+
+interface RealtimeEvent {
+  type: 'rooms.updated' | 'room.updated' | 'room.deleted' | 'game.updated'
+  rooms?: Room[]
+  room?: Room
+  roomId?: string
+  game?: Game
+}
 
 function hasSessionStorage() {
   return typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
@@ -69,271 +83,344 @@ function writeSession(key: string, value: unknown) {
   sessionStorage.setItem(key, JSON.stringify(value))
 }
 
-function createId() {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError || error instanceof Error) {
+    return error.message
   }
 
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+  return fallback
 }
 
-function createCode(existingCodes: Set<string>) {
-  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
-  let code = ''
-
-  do {
-    code = Array.from({ length: 6 }, () => {
-      const index = Math.floor(Math.random() * alphabet.length)
-      return alphabet[index]
-    }).join('')
-  } while (existingCodes.has(code))
-
-  return code
-}
-
-function normalizeRoomOwner(room: Room, players: RoomPlayer[]) {
-  const ownerId = players.some((player) => player.id === room.ownerId) ? room.ownerId : players[0].id
-
-  return {
-    ownerId,
-    players: players.map((player) => ({
-      ...player,
-      isOwner: player.id === ownerId,
-    })),
+function upsertRoom(rooms: Room[], nextRoom: Room) {
+  const exists = rooms.some((room) => room.id === nextRoom.id)
+  if (!exists) {
+    return [nextRoom, ...rooms]
   }
+
+  return rooms.map((room) => (room.id === nextRoom.id ? nextRoom : room))
 }
 
-function getSeedRooms(): Room[] {
-  return [
-    {
-      id: 'bronx-night',
-      code: 'BRX731',
-      name: 'Бронкс після заходу',
-      status: 'waiting',
-      maxPlayers: 12,
-      ownerId: 'seed-owner-1',
-      players: [
-        { id: 'seed-owner-1', nickname: 'DonVito', isOwner: true },
-        { id: 'seed-player-1', nickname: 'Capo77', isOwner: false },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'silent-table',
-      code: 'SLN502',
-      name: 'Тиха переговорна',
-      status: 'preparation',
-      maxPlayers: 10,
-      ownerId: 'seed-owner-2',
-      players: [
-        { id: 'seed-owner-2', nickname: 'Detective', isOwner: true },
-        { id: 'seed-player-2', nickname: 'Shadow', isOwner: false },
-        { id: 'seed-player-3', nickname: 'Medic', isOwner: false },
-        { id: 'seed-player-4', nickname: 'Margo', isOwner: false },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'city-neon',
-      code: 'CTY924',
-      name: 'Місто неону',
-      status: 'recruiting',
-      maxPlayers: 16,
-      ownerId: 'seed-owner-3',
-      players: [
-        { id: 'seed-owner-3', nickname: 'Headliner', isOwner: true },
-        { id: 'seed-player-5', nickname: 'QuietFox', isOwner: false },
-        { id: 'seed-player-6', nickname: 'Marta', isOwner: false },
-        { id: 'seed-player-7', nickname: 'Revolver', isOwner: false },
-        { id: 'seed-player-8', nickname: 'Nora', isOwner: false },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: 'private-match',
-      code: 'HID221',
-      name: 'Приватна партія',
-      status: 'in_progress',
-      maxPlayers: 8,
-      ownerId: 'seed-owner-4',
-      players: [
-        { id: 'seed-owner-4', nickname: 'OldBoss', isOwner: true },
-        { id: 'seed-player-9', nickname: 'Luna', isOwner: false },
-      ],
-      createdAt: new Date().toISOString(),
-    },
-  ]
-}
+function syncAvailableRooms(currentRooms: Room[], availableRooms: Room[]) {
+  const nonLobbyRooms = currentRooms.filter((room) => !LOBBY_STATUSES.includes(room.status))
+  const availableIds = new Set(availableRooms.map((room) => room.id))
+  const preservedRooms = nonLobbyRooms.filter((room) => !availableIds.has(room.id))
 
-function sanitizeRooms(rooms: Room[]): Room[] {
-  return rooms
-    .map((room) => {
-      const maxPlayers = Math.max(MIN_PLAYERS_IN_ROOM, Math.min(MAX_PLAYERS_IN_ROOM, room.maxPlayers))
-      const players = room.players.slice(0, maxPlayers)
-      if (players.length === 0) {
-        return null
-      }
-
-      const ownerState = normalizeRoomOwner(room, players)
-      const status =
-        room.status === 'in_progress' || room.status === 'finished'
-          ? room.status
-          : deriveLobbyStatus(ownerState.players.length, maxPlayers)
-
-      return {
-        ...room,
-        ...ownerState,
-        maxPlayers,
-        status,
-      }
-    })
-    .filter((room): room is Room => room !== null)
+  return [...availableRooms, ...preservedRooms]
 }
 
 export function GameProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserSession | null>(() => readSession<UserSession | null>(USER_STORAGE_KEY, null))
-  const [rooms, setRooms] = useState<Room[]>(() => {
-    const storedRooms = readSession<Room[] | null>(ROOMS_STORAGE_KEY, null)
-    return sanitizeRooms(storedRooms ?? getSeedRooms())
-  })
+  const [token, setToken] = useState<string | null>(() => readSession<string | null>(TOKEN_STORAGE_KEY, null))
+  const [user, setUser] = useState<UserSession | null>(() =>
+    readSession<string | null>(TOKEN_STORAGE_KEY, null) ? readSession<UserSession | null>(USER_STORAGE_KEY, null) : null,
+  )
+  const [rooms, setRooms] = useState<Room[]>([])
+  const [games, setGames] = useState<Record<string, Game>>({})
+  const [isLoading, setIsLoading] = useState(false)
+  const [apiError, setApiError] = useState('')
+  const reconnectTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     writeSession(USER_STORAGE_KEY, user)
   }, [user])
 
   useEffect(() => {
-    writeSession(ROOMS_STORAGE_KEY, rooms)
-  }, [rooms])
+    writeSession(TOKEN_STORAGE_KEY, token)
+  }, [token])
 
-  const login = useCallback((nickname: string) => {
-    const cleanNickname = nickname.trim()
-    if (!cleanNickname) {
-      return
-    }
-
-    setUser({ id: createId(), nickname: cleanNickname })
+  const clearSession = useCallback(() => {
+    setUser(null)
+    setToken(null)
+    setRooms([])
+    setGames({})
   }, [])
 
-  const logout = useCallback(() => {
-    if (!user) {
+  const refreshRooms = useCallback(async (): Promise<ActionResult> => {
+    setIsLoading(true)
+    try {
+      const response = await api.listRooms()
+      setRooms(response.rooms)
+      setApiError('')
+      return { ok: true }
+    } catch (error) {
+      const message = getErrorMessage(error, 'Не вдалося оновити список кімнат.')
+      setApiError(message)
+      return { ok: false, error: message }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  const loadRoom = useCallback(async (roomId: string, options?: { silent?: boolean }): Promise<ActionResult> => {
+    if (!options?.silent) {
+      setIsLoading(true)
+    }
+
+    try {
+      const response = await api.getRoom(roomId)
+      setRooms((currentRooms) => upsertRoom(currentRooms, response.room))
+      setApiError('')
+      return { ok: true, roomId: response.room.id }
+    } catch (error) {
+      const message = getErrorMessage(error, 'Не вдалося завантажити кімнату.')
+      setApiError(message)
+      return { ok: false, error: message }
+    } finally {
+      if (!options?.silent) {
+        setIsLoading(false)
+      }
+    }
+  }, [])
+
+  const loadGame = useCallback(
+    async (roomId: string, options?: { silent?: boolean }): Promise<ActionResult> => {
+      const currentToken = token
+      if (!currentToken) {
+        return { ok: false, error: 'Сесію користувача не знайдено.' }
+      }
+
+      if (!options?.silent) {
+        setIsLoading(true)
+      }
+
+      try {
+        const response = await api.getGame(currentToken, roomId)
+        setGames((currentGames) => ({
+          ...currentGames,
+          [response.game.roomId]: response.game,
+        }))
+        setApiError('')
+        return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося завантажити гру.')
+        setApiError(message)
+        return { ok: false, error: message }
+      } finally {
+        if (!options?.silent) {
+          setIsLoading(false)
+        }
+      }
+    },
+    [token],
+  )
+
+  useEffect(() => {
+    void refreshRooms()
+  }, [refreshRooms])
+
+  useEffect(() => {
+    let isActive = true
+    let socket: WebSocket | null = null
+
+    const connect = () => {
+      socket = new WebSocket(WS_URL)
+
+      socket.onmessage = (event) => {
+        try {
+          const realtimeEvent = JSON.parse(event.data) as RealtimeEvent
+
+          if (realtimeEvent.type === 'rooms.updated' && realtimeEvent.rooms) {
+            setRooms((currentRooms) => syncAvailableRooms(currentRooms, realtimeEvent.rooms ?? []))
+            return
+          }
+
+          if (realtimeEvent.type === 'room.updated' && realtimeEvent.room) {
+            setRooms((currentRooms) => upsertRoom(currentRooms, realtimeEvent.room as Room))
+            return
+          }
+
+          if (realtimeEvent.type === 'room.deleted' && realtimeEvent.roomId) {
+            setRooms((currentRooms) => currentRooms.filter((room) => room.id !== realtimeEvent.roomId))
+            setGames((currentGames) => {
+              const nextGames = { ...currentGames }
+              delete nextGames[realtimeEvent.roomId as string]
+              return nextGames
+            })
+            return
+          }
+
+          if (realtimeEvent.type === 'game.updated') {
+            const roomId = realtimeEvent.roomId ?? realtimeEvent.game?.roomId
+            if (!roomId) {
+              return
+            }
+
+            if (!token) {
+              if (realtimeEvent.game) {
+                setGames((currentGames) => ({
+                  ...currentGames,
+                  [realtimeEvent.game?.roomId as string]: realtimeEvent.game as Game,
+                }))
+              }
+              return
+            }
+
+            void api
+              .getGame(token, roomId)
+              .then((response) => {
+                setGames((currentGames) => ({
+                  ...currentGames,
+                  [response.game.roomId]: response.game,
+                }))
+              })
+              .catch(() => {
+                // HTTP polling remains the fallback if a realtime-triggered private refresh fails.
+              })
+          }
+        } catch {
+          // Ignore malformed realtime messages; HTTP refresh remains the fallback.
+        }
+      }
+
+      socket.onclose = () => {
+        if (!isActive) {
+          return
+        }
+
+        reconnectTimerRef.current = window.setTimeout(connect, 1500)
+      }
+
+      socket.onerror = () => {
+        socket?.close()
+      }
+    }
+
+    connect()
+
+    return () => {
+      isActive = false
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current)
+      }
+      socket?.close()
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (!token) {
       return
     }
 
-    setRooms((currentRooms) =>
-      currentRooms
-        .map((room) => {
-          const remainingPlayers = room.players.filter((player) => player.id !== user.id)
-          if (remainingPlayers.length === 0) {
-            return null
-          }
+    const currentToken = token
+    let isActive = true
 
-          const ownerState = normalizeRoomOwner(room, remainingPlayers)
-          const nextStatus =
-            room.status === 'in_progress' || room.status === 'finished'
-              ? room.status
-              : deriveLobbyStatus(ownerState.players.length, room.maxPlayers)
+    async function validateSession() {
+      try {
+        const response = await api.me(currentToken)
+        if (!isActive) {
+          return
+        }
+        setUser(response.user)
+      } catch {
+        if (isActive) {
+          clearSession()
+        }
+      }
+    }
 
-          return {
-            ...room,
-            ...ownerState,
-            status: nextStatus,
-          }
-        })
-        .filter((room): room is Room => room !== null),
-    )
+    void validateSession()
 
-    setUser(null)
-  }, [user])
+    return () => {
+      isActive = false
+    }
+  }, [clearSession, token])
+
+  const login = useCallback(async (nickname: string): Promise<ActionResult> => {
+    const cleanNickname = nickname.trim()
+    if (!cleanNickname) {
+      return { ok: false, error: 'Вкажіть nickname.' }
+    }
+
+    setIsLoading(true)
+    try {
+      const result = await api.login(cleanNickname)
+      setUser(result.user)
+      setToken(result.token)
+      setApiError('')
+      await refreshRooms()
+      return { ok: true }
+    } catch (error) {
+      const message = getErrorMessage(error, 'Не вдалося увійти.')
+      setApiError(message)
+      return { ok: false, error: message }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [refreshRooms])
+
+  const logout = useCallback(async () => {
+    const currentToken = token
+    clearSession()
+
+    if (!currentToken) {
+      return
+    }
+
+    try {
+      await api.logout(currentToken)
+    } catch {
+      // Local logout should still succeed if the server session is already gone.
+    }
+  }, [clearSession, token])
+
+  const requireToken = useCallback((): string | null => {
+    if (!token) {
+      setApiError('Сесію користувача не знайдено.')
+      return null
+    }
+
+    return token
+  }, [token])
 
   const createRoom = useCallback(
-    (roomName: string, maxPlayers: number): ActionResult => {
-      if (!user) {
-        return { ok: false, error: 'Спочатку потрібно увійти з nickname.' }
+    async (roomName: string, maxPlayers: number): Promise<ActionResult> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
+        return { ok: false, error: 'Сесію користувача не знайдено.' }
       }
 
-      const cleanName = roomName.trim()
-      if (!cleanName) {
-        return { ok: false, error: 'Вкажіть назву кімнати.' }
+      setIsLoading(true)
+      try {
+        const response = await api.createRoom(currentToken, roomName, maxPlayers)
+        setRooms((currentRooms) => upsertRoom(currentRooms, response.room))
+        setApiError('')
+        return { ok: true, roomId: response.room.id }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося створити кімнату.')
+        setApiError(message)
+        return { ok: false, error: message }
+      } finally {
+        setIsLoading(false)
       }
-
-      const safeMaxPlayers = Math.max(
-        MIN_PLAYERS_IN_ROOM,
-        Math.min(MAX_PLAYERS_IN_ROOM, Math.floor(maxPlayers)),
-      )
-      const code = createCode(new Set(rooms.map((room) => room.code)))
-      const id = createId()
-
-      const newRoom: Room = {
-        id,
-        code,
-        name: cleanName,
-        maxPlayers: safeMaxPlayers,
-        ownerId: user.id,
-        players: [{ id: user.id, nickname: user.nickname, isOwner: true }],
-        status: 'waiting',
-        createdAt: new Date().toISOString(),
-      }
-
-      setRooms((currentRooms) => [newRoom, ...currentRooms])
-      return { ok: true, roomId: id }
     },
-    [rooms, user],
+    [requireToken],
   )
 
   const joinRoom = useCallback(
-    (roomId: string): ActionResult => {
-      if (!user) {
-        return { ok: false, error: 'Спочатку потрібно увійти з nickname.' }
+    async (roomId: string): Promise<ActionResult> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
+        return { ok: false, error: 'Сесію користувача не знайдено.' }
       }
 
-      const room = rooms.find((currentRoom) => currentRoom.id === roomId)
-      if (!room) {
-        return { ok: false, error: 'Кімнату не знайдено.' }
+      setIsLoading(true)
+      try {
+        const response = await api.joinRoom(currentToken, roomId)
+        setRooms((currentRooms) => upsertRoom(currentRooms, response.room))
+        setApiError('')
+        return { ok: true, roomId: response.room.id }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося приєднатися до кімнати.')
+        setApiError(message)
+        return { ok: false, error: message }
+      } finally {
+        setIsLoading(false)
       }
-
-      if (room.status === 'in_progress' || room.status === 'finished') {
-        return { ok: false, error: 'Ця кімната вже недоступна для входу.' }
-      }
-
-      const isAlreadyInside = room.players.some((player) => player.id === user.id)
-      if (isAlreadyInside) {
-        return { ok: true, roomId: room.id }
-      }
-
-      if (room.players.length >= room.maxPlayers) {
-        return { ok: false, error: 'У кімнаті вже немає вільних місць.' }
-      }
-
-      setRooms((currentRooms) =>
-        currentRooms.map((currentRoom) => {
-          if (currentRoom.id !== room.id) {
-            return currentRoom
-          }
-
-          const nextPlayers = [
-            ...currentRoom.players,
-            {
-              id: user.id,
-              nickname: user.nickname,
-              isOwner: currentRoom.ownerId === user.id,
-            },
-          ]
-
-          return {
-            ...currentRoom,
-            players: nextPlayers,
-            status: deriveLobbyStatus(nextPlayers.length, currentRoom.maxPlayers),
-          }
-        }),
-      )
-
-      return { ok: true, roomId: room.id }
     },
-    [rooms, user],
+    [requireToken],
   )
 
   const joinRoomByCode = useCallback(
-    (code: string): ActionResult => {
+    async (code: string): Promise<ActionResult> => {
       const cleanCode = code.trim().toUpperCase()
       if (!cleanCode) {
         return { ok: false, error: 'Введіть код кімнати.' }
@@ -350,82 +437,117 @@ export function GameProvider({ children }: { children: ReactNode }) {
   )
 
   const leaveRoom = useCallback(
-    (roomId: string): ActionResult => {
-      if (!user) {
+    async (roomId: string): Promise<ActionResult> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
         return { ok: false, error: 'Сесію користувача не знайдено.' }
       }
 
-      const room = rooms.find((currentRoom) => currentRoom.id === roomId)
-      if (!room) {
-        return { ok: false, error: 'Кімнату не знайдено.' }
-      }
-
-      const isInside = room.players.some((player) => player.id === user.id)
-      if (!isInside) {
+      try {
+        await api.leaveRoom(currentToken, roomId)
+        setRooms((currentRooms) => currentRooms.filter((room) => room.id !== roomId))
+        setApiError('')
+        void refreshRooms()
         return { ok: true }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося вийти з кімнати.')
+        setApiError(message)
+        return { ok: false, error: message }
       }
-
-      setRooms((currentRooms) =>
-        currentRooms
-          .map((currentRoom) => {
-            if (currentRoom.id !== room.id) {
-              return currentRoom
-            }
-
-            const remainingPlayers = currentRoom.players.filter((player) => player.id !== user.id)
-            if (remainingPlayers.length === 0) {
-              return null
-            }
-
-            const ownerState = normalizeRoomOwner(currentRoom, remainingPlayers)
-            return {
-              ...currentRoom,
-              ...ownerState,
-              status: deriveLobbyStatus(remainingPlayers.length, currentRoom.maxPlayers),
-            }
-          })
-          .filter((currentRoom): currentRoom is Room => currentRoom !== null),
-      )
-
-      return { ok: true }
     },
-    [rooms, user],
+    [refreshRooms, requireToken],
   )
 
   const startRoom = useCallback(
-    (roomId: string): ActionResult => {
-      if (!user) {
+    async (roomId: string): Promise<ActionResult> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
         return { ok: false, error: 'Сесію користувача не знайдено.' }
       }
 
-      const room = rooms.find((currentRoom) => currentRoom.id === roomId)
-      if (!room) {
-        return { ok: false, error: 'Кімнату не знайдено.' }
+      setIsLoading(true)
+      try {
+        const response = await api.startRoom(currentToken, roomId)
+        setRooms((currentRooms) => upsertRoom(currentRooms, response.room))
+        setApiError('')
+        try {
+          const gameResponse = await api.getGame(currentToken, roomId)
+          setGames((currentGames) => ({
+            ...currentGames,
+            [gameResponse.game.roomId]: gameResponse.game,
+          }))
+          return { ok: true, roomId: response.room.id, gameId: gameResponse.game.id, game: gameResponse.game }
+        } catch {
+          // Realtime signal or GamePage load will recover the private snapshot.
+        }
+        return { ok: true, roomId: response.room.id }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося почати гру.')
+        setApiError(message)
+        return { ok: false, error: message }
+      } finally {
+        setIsLoading(false)
       }
-
-      if (room.ownerId !== user.id) {
-        return { ok: false, error: 'Лише власник кімнати може почати гру.' }
-      }
-
-      setRooms((currentRooms) =>
-        currentRooms.map((currentRoom) =>
-          currentRoom.id === room.id
-            ? {
-                ...currentRoom,
-                status: 'in_progress',
-              }
-            : currentRoom,
-        ),
-      )
-
-      return { ok: true, roomId }
     },
-    [rooms, user],
+    [requireToken],
+  )
+
+  const setGamePhase = useCallback(
+    async (roomId: string, phase: GamePhase): Promise<ActionResult> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
+        return { ok: false, error: 'Сесію користувача не знайдено.' }
+      }
+
+      try {
+        const response = await api.setGamePhase(currentToken, roomId, phase)
+        setGames((currentGames) => ({
+          ...currentGames,
+          [response.game.roomId]: response.game,
+        }))
+        setApiError('')
+        return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося змінити фазу гри.')
+        setApiError(message)
+        return { ok: false, error: message }
+      }
+    },
+    [requireToken],
+  )
+
+  const submitGameAction = useCallback(
+    async (roomId: string, type: GameActionType, targetId: string): Promise<ActionResult> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
+        return { ok: false, error: 'Сесію користувача не знайдено.' }
+      }
+
+      try {
+        const response = await api.submitGameAction(currentToken, roomId, type, targetId)
+        setGames((currentGames) => ({
+          ...currentGames,
+          [response.game.roomId]: response.game,
+        }))
+        setApiError('')
+        return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося виконати дію.')
+        setApiError(message)
+        return { ok: false, error: message }
+      }
+    },
+    [requireToken],
   )
 
   const getRoomById = useCallback(
     (roomId: string) => rooms.find((room) => room.id === roomId),
     [rooms],
+  )
+
+  const getGameByRoomId = useCallback(
+    (roomId: string) => games[roomId],
+    [games],
   )
 
   const availableRooms = useMemo(
@@ -437,26 +559,44 @@ export function GameProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       rooms,
+      games,
       availableRooms,
+      isLoading,
+      apiError,
       login,
       logout,
+      refreshRooms,
+      loadRoom,
+      loadGame,
       createRoom,
       joinRoom,
       joinRoomByCode,
       leaveRoom,
       startRoom,
+      setGamePhase,
+      submitGameAction,
       getRoomById,
+      getGameByRoomId,
     }),
     [
+      apiError,
       availableRooms,
       createRoom,
+      games,
+      getGameByRoomId,
       getRoomById,
+      isLoading,
       joinRoom,
       joinRoomByCode,
       leaveRoom,
+      loadGame,
+      loadRoom,
       login,
       logout,
+      refreshRooms,
       rooms,
+      setGamePhase,
+      submitGameAction,
       startRoom,
       user,
     ],

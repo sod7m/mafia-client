@@ -4,13 +4,14 @@ import { useLocation } from 'react-router-dom'
 import { ProtectedRoute } from './components/ProtectedRoute.tsx'
 import { useGame } from './context/GameContext.tsx'
 import { HomePage } from './pages/HomePage.tsx'
+import { GamePage } from './pages/GamePage.tsx'
 import { NotFoundPage } from './pages/NotFoundPage.tsx'
 import { RoomPage } from './pages/RoomPage.tsx'
 import { RoomsPage } from './pages/RoomsPage.tsx'
 import { RulesPage } from './pages/RulesPage.tsx'
 
 function getRoomIdFromPath(pathname: string) {
-  const match = pathname.match(/^\/room\/([^/]+)$/)
+  const match = pathname.match(/^\/room\/([^/]+)(?:\/game)?$/)
   if (!match) {
     return null
   }
@@ -28,7 +29,7 @@ export default function App() {
     const previousRoomId = previousRoomIdRef.current
 
     if (previousRoomId && previousRoomId !== currentRoomId && user) {
-      leaveRoom(previousRoomId)
+      void leaveRoom(previousRoomId)
     }
 
     previousRoomIdRef.current = currentRoomId
@@ -51,6 +52,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <RoomPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/room/:id/game"
+        element={
+          <ProtectedRoute>
+            <GamePage />
           </ProtectedRoute>
         }
       />
