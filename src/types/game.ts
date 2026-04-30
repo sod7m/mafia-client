@@ -67,6 +67,9 @@ export interface Game {
   roomId: string
   phase: GamePhase
   round: number
+  phaseStartedAt: string
+  phaseEndsAt: string
+  phaseDurationSeconds: number
   players: GamePlayer[]
   actions: GameAction[]
   events: GameEvent[]

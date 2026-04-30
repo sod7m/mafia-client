@@ -191,38 +191,48 @@ export function RoomsPage() {
           </section>
         ) : (
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {availableRooms.map((room) => (
-              <article
-                key={room.id}
-                onClick={() => handleJoinFromList(room.id)}
-                className="surface-card room-card cursor-pointer rounded-2xl p-5"
-              >
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-xl font-bold">{room.name}</h2>
-                    <p className="text-sm text-[hsl(var(--muted-foreground))]">Код: {room.code}</p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="inline-flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
-                      <Users className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
-                      {room.players.length} / {room.maxPlayers}
+            {availableRooms.map((room) => {
+              const isRoomOwner = room.ownerId === user?.id
+
+              return (
+                <article
+                  key={room.id}
+                  onClick={() => handleJoinFromList(room.id)}
+                  className="surface-card room-card cursor-pointer rounded-2xl p-5"
+                >
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="text-xl font-bold">{room.name}</h2>
+                      <p className="text-sm text-[hsl(var(--muted-foreground))]">Код: {room.code}</p>
                     </div>
-                    <span className={`status-pill ${statusClass[room.status]}`}>Очікування</span>
+                    <div className="flex items-center justify-between">
+                      <div className="inline-flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
+                        <Users className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
+                        {room.players.length} / {room.maxPlayers}
+                      </div>
+                      <span className={`status-pill ${statusClass[room.status]}`}>Очікування</span>
+                    </div>
+                    {isRoomOwner ? (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleForceStartFromList(room.id)
+                        }}
+                        className="btn-base btn-primary btn-room w-full px-4 py-3 text-sm"
+                      >
+                        <Play className="h-4 w-4" />
+                        Демо старт
+                      </button>
+                    ) : (
+                      <p className="rounded-lg bg-white/5 px-3 py-2 text-sm font-semibold text-[hsl(var(--muted-foreground))]">
+                        Стартує власник кімнати
+                      </p>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      handleForceStartFromList(room.id)
-                    }}
-                    className="btn-base btn-primary btn-room w-full px-4 py-3 text-sm"
-                  >
-                    <Play className="h-4 w-4" />
-                    Демо старт
-                  </button>
-                </div>
-              </article>
-            ))}
+                </article>
+              )
+            })}
           </section>
         )}
         </div>

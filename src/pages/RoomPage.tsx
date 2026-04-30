@@ -24,6 +24,7 @@ export function RoomPage() {
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const isParticipant = !!(room && user && room.players.some((player) => player.id === user.id))
   const isRoomOwner = !!(room && user && room.ownerId === user.id)
+  const hasEnoughPlayersToStart = !!room && room.players.length >= 4
   const roomStatusBadge =
     room && (room.status === 'waiting' || room.status === 'recruiting' || room.status === 'preparation')
       ? { label: 'Очікування', className: 'status-waiting' }
@@ -183,7 +184,12 @@ export function RoomPage() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-2xl font-bold">Склад гравців</h2>
               {room.status !== 'in_progress' && isRoomOwner ? (
-                <button type="button" onClick={handleStartGame} className="btn-base btn-primary btn-room px-5 py-3 text-base">
+                <button
+                  type="button"
+                  onClick={handleStartGame}
+                  disabled={!hasEnoughPlayersToStart}
+                  className="btn-base btn-primary btn-room px-5 py-3 text-base disabled:pointer-events-none disabled:opacity-45"
+                >
                   <Play className="h-4 w-4" />
                   Демо старт
                 </button>
@@ -243,6 +249,7 @@ export function RoomPage() {
             <h3 className="mb-3 text-xl font-bold">Стан кімнати</h3>
             <ul className="space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
               <li>• Кімната доступна, доки власник не натисне «Демо старт».</li>
+              <li>• Для старту потрібно мінімум 4 гравці.</li>
               <li>• Після старту вона зникає зі списку загальних кімнат.</li>
               <li>• Старт і керування фазами доступні тільки власнику кімнати.</li>
             </ul>

@@ -298,8 +298,33 @@ function getActionType(phase: GamePhase, role?: PlayerRole): GameActionType | nu
   return null
 }
 
-function getRoleLabel(role?: GameRole) {
-  return role ? roleDetails[role].label : 'Невідомо'
+function getInspectLabel(role?: GameRole) {
+  if (!role) {
+    return 'Невідомо'
+  }
+
+  return role === 'mafia' ? 'Мафія' : 'Мирний'
+}
+
+function getNextPhaseLabel(phase: GamePhase) {
+  switch (phase) {
+    case 'night':
+      return 'До дня'
+    case 'day':
+      return 'До голосування'
+    case 'voting':
+      return 'До ночі'
+    default:
+      return 'Гру завершено'
+  }
+}
+
+function getSecondsLeft(phaseEndsAt: string | undefined, nowMs: number) {
+  if (!phaseEndsAt) {
+    return 0
+  }
+
+  return Math.max(0, Math.ceil((new Date(phaseEndsAt).getTime() - nowMs) / 1000))
 }
 
 export function GamePage() {
@@ -309,26 +334,30 @@ export function GamePage() {
     getGameByRoomId,
     getRoomById,
     isLoading,
+    advanceGamePhase,
     leaveRoom,
     loadGame,
     loadRoom,
-    setGamePhase,
     startRoom,
     submitGameAction,
     user,
   } = useGame()
-  const [phase, setPhase] = useState<GamePhase>('night')
-  const [dayNumber, setDayNumber] = useState(1)
-  const [nightNumber, setNightNumber] = useState(1)
-  const [secondsLeft, setSecondsLeft] = useState(phaseConfig.night.duration)
-  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null)
-  const [actionFeedback, setActionFeedback] = useState('')
-  const [overlayText, setOverlayText] = useState('Ніч 1')
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [selectedTargetChoice, setSelectedTargetChoice] = useState<{ playerId: string; phaseKey: string } | null>(null)
+  const [actionFeedback, setActionFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
+  const [phaseFeedback, setPhaseFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
+  const [isAdvancingPhase, setIsAdvancingPhase] = useState(false)
   const [micEnabled, setMicEnabled] = useState(true)
   const [cameraEnabled, setCameraEnabled] = useState(true)
 
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const game = useMemo(() => (id ? getGameByRoomId(id) : undefined), [getGameByRoomId, id])
+  const phase = game?.phase ?? 'night'
+  const phaseNumber = game?.round ?? 1
+  const phaseKey = `${phase}:${phaseNumber}`
+  const selectedTargetId = selectedTargetChoice?.phaseKey === phaseKey ? selectedTargetChoice.playerId : null
+  const currentActionFeedback = actionFeedback?.phaseKey === phaseKey ? actionFeedback.text : ''
+  const currentPhaseFeedback = phaseFeedback?.phaseKey === phaseKey ? phaseFeedback.text : ''
   const serverPlayers = useMemo(
     () => (game ? getRoomPlayersFromGame(game.players) : room?.players ?? []),
     [game, room?.players],
@@ -354,7 +383,6 @@ export function GamePage() {
   const selectedTargetState = selectedTarget ? gamePlayersById.get(selectedTarget.id) : undefined
   const phaseDetails = phaseConfig[phase]
   const PhaseIcon = phaseDetails.icon
-  const phaseNumber = phase === 'night' ? nightNumber : dayNumber
   const theme = getThemeClasses(phase)
   const playerGridLayout = getPlayerGridLayout(visiblePlayers.length)
   const playerBoardStyle = getPlayerBoardStyle(playerGridLayout)
@@ -385,6 +413,8 @@ export function GamePage() {
           ? 'Підтвердити лікування'
           : 'Підтвердити перевірку'
   const recentEvents = useMemo(() => (game?.events ?? []).slice(-4).reverse(), [game?.events])
+  const secondsLeft = phase === 'final' ? 0 : getSecondsLeft(game?.phaseEndsAt, nowMs)
+  const overlayText = phase === 'final' ? 'Фінал' : `${phaseDetails.label} ${phaseNumber}`
 
   useEffect(() => {
     if (!id || room) {
@@ -427,43 +457,12 @@ export function GamePage() {
   }, [game, id, loadGame])
 
   useEffect(() => {
-    if (!game) {
-      return
-    }
-
-    setPhase(game.phase)
-    setDayNumber(game.round)
-    setNightNumber(game.round)
-  }, [game])
-
-  useEffect(() => {
-    setSecondsLeft(phaseDetails.duration)
-    setSelectedTargetId(null)
-    setActionFeedback('')
-  }, [phase, phaseDetails.duration])
-
-  useEffect(() => {
-    if (phase === 'final') {
-      return
-    }
-
     const timer = window.setInterval(() => {
-      setSecondsLeft((current) => Math.max(0, current - 1))
+      setNowMs(Date.now())
     }, 1000)
 
     return () => window.clearInterval(timer)
-  }, [phase])
-
-  useEffect(() => {
-    const text = phase === 'final' ? 'Фінал' : `${phaseDetails.label} ${phaseNumber}`
-    setOverlayText(text)
-
-    const timeoutId = window.setTimeout(() => {
-      setOverlayText('')
-    }, 1200)
-
-    return () => window.clearTimeout(timeoutId)
-  }, [phase, phaseDetails.label, phaseNumber])
+  }, [])
 
   if (!room) {
     if (isLoading) {
@@ -494,6 +493,10 @@ export function GamePage() {
       navigate(`/room/${room.id}`)
       return
     }
+    if (room.players.length < 4) {
+      navigate(`/room/${room.id}`)
+      return
+    }
 
     const result = await startRoom(room.id)
     if (result.ok) {
@@ -506,8 +509,13 @@ export function GamePage() {
       <div className="grid h-screen place-items-center overflow-hidden bg-[#050616] p-5 text-white">
         <div className="surface-card w-full max-w-lg rounded-2xl p-6 text-center">
           <h1 className="text-3xl font-bold">Гра ще не запущена</h1>
-          <p className="mt-3 text-[hsl(var(--muted-foreground))]">Запустіть демо-режим, щоб перейти до столу.</p>
-          <button type="button" onClick={handleStartFromGame} className="btn-base btn-primary mt-5 px-5 py-3 text-sm">
+          <p className="mt-3 text-[hsl(var(--muted-foreground))]">Для старту потрібно мінімум 4 гравці.</p>
+          <button
+            type="button"
+            onClick={handleStartFromGame}
+            disabled={room.players.length < 4}
+            className="btn-base btn-primary mt-5 px-5 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
+          >
             Демо старт
           </button>
         </div>
@@ -530,27 +538,42 @@ export function GamePage() {
     navigate('/rooms')
   }
 
-  const handlePhaseSwitch = async (nextPhase: GamePhase) => {
+  const handleAdvancePhase = async () => {
     if (room.ownerId !== user?.id) {
       return
     }
+    if (isAdvancingPhase) {
+      return
+    }
 
-    await setGamePhase(room.id, nextPhase)
+    setIsAdvancingPhase(true)
+    setPhaseFeedback(null)
+    const result = await advanceGamePhase(room.id)
+    if (!result.ok) {
+      setPhaseFeedback({ text: result.error ?? 'Не вдалося перейти до наступної фази.', phaseKey })
+      setIsAdvancingPhase(false)
+      return
+    }
+
+    await loadGame(room.id, { silent: true })
+    setIsAdvancingPhase(false)
   }
 
   const handlePlayerClick = (player: RoomPlayer) => {
     const playerState = gamePlayersById.get(player.id)
     const isSelf = player.id === user?.id
 
-    if (!canSelectTarget || playerState?.isAlive === false) {
+    if (!canSelectTarget || !playerState || playerState.isAlive === false) {
       return
     }
     if (isSelf && currentActionType !== 'heal') {
       return
     }
 
-    setSelectedTargetId((current) => (current === player.id ? null : player.id))
-    setActionFeedback('')
+    setSelectedTargetChoice((current) =>
+      current?.playerId === player.id && current.phaseKey === phaseKey ? null : { playerId: player.id, phaseKey },
+    )
+    setActionFeedback(null)
   }
 
   const handleConfirmAction = async () => {
@@ -560,7 +583,7 @@ export function GamePage() {
 
     const result = await submitGameAction(room.id, currentActionType, selectedTarget.id)
     if (!result.ok) {
-      setActionFeedback(result.error ?? 'Не вдалося виконати дію.')
+      setActionFeedback({ text: result.error ?? 'Не вдалося виконати дію.', phaseKey })
       return
     }
 
@@ -570,20 +593,25 @@ export function GamePage() {
         .reverse()
         .find((event) => event.type === 'inspect.resolved' && event.targetId === selectedTarget.id)
       const inspectedTarget = result.game?.players.find((player) => player.id === selectedTarget.id)
-      setActionFeedback(
-        inspectEvent?.message ??
-          `Результат перевірки: ${selectedTarget.nickname} — ${getRoleLabel(inspectedTarget?.role ?? selectedTargetState?.role)}`,
-      )
+      setActionFeedback({
+        text:
+          inspectEvent?.message ??
+          `Результат перевірки: ${selectedTarget.nickname} — ${getInspectLabel(inspectedTarget?.role ?? selectedTargetState?.role)}`,
+        phaseKey,
+      })
     } else {
-      setActionFeedback(`${confirmLabel}: ${selectedTarget.nickname}`)
+      setActionFeedback({ text: `${confirmLabel}: ${selectedTarget.nickname}`, phaseKey })
     }
-    setSelectedTargetId(null)
+    setSelectedTargetChoice(null)
   }
 
   return (
     <div className={cx('flex h-screen flex-col overflow-hidden text-white', theme.page)}>
-      {overlayText && (
-        <div className="pointer-events-none fixed inset-0 z-[80] grid animate-[phaseOverlay_1.2s_ease_forwards] place-items-center bg-black/80 text-6xl font-black max-sm:text-5xl">
+      {game && (
+        <div
+          key={overlayText}
+          className="pointer-events-none fixed inset-0 z-[80] grid animate-[phaseOverlay_1.2s_ease_forwards] place-items-center bg-black/80 text-6xl font-black max-sm:text-5xl"
+        >
           {overlayText}
         </div>
       )}
@@ -629,6 +657,7 @@ export function GamePage() {
                 const isCameraOff = index % 4 === 1
                 const isSelectable =
                   canSelectTarget &&
+                  !!playerState &&
                   isAlive &&
                   (!isSelf || currentActionType === 'heal')
 
@@ -705,15 +734,17 @@ export function GamePage() {
             <button
               type="button"
               onClick={handleConfirmAction}
-              disabled={!selectedTarget || selectedTargetState?.isAlive === false}
+              disabled={!selectedTarget || !selectedTargetState || selectedTargetState.isAlive === false}
               className="btn-base btn-primary w-full px-4 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
             >
               <Check className="h-4 w-4" />
               {confirmLabel}
             </button>
 
-            {actionFeedback && (
-              <p className="mt-3 rounded-lg bg-emerald-500/15 p-3 text-sm font-bold text-emerald-200">{actionFeedback}</p>
+            {currentActionFeedback && (
+              <p className="mt-3 rounded-lg bg-emerald-500/15 p-3 text-sm font-bold text-emerald-200">
+                {currentActionFeedback}
+              </p>
             )}
           </section>
 
@@ -780,24 +811,21 @@ export function GamePage() {
 
         {room.ownerId === user?.id ? (
           <div className="flex flex-wrap items-center justify-end gap-2 justify-self-end text-xs text-neutral-500 max-md:justify-center">
-            <span>Демо:</span>
-            {(['night', 'day', 'voting', 'final'] as GamePhase[]).map((demoPhase) => {
-              const DemoIcon = phaseConfig[demoPhase].icon
-              return (
-                <button
-                  key={demoPhase}
-                  type="button"
-                  onClick={() => handlePhaseSwitch(demoPhase)}
-                  className={cx(
-                    'inline-flex h-8 items-center gap-1 rounded border border-neutral-700 bg-neutral-900/80 px-3 font-bold text-neutral-400',
-                    phase === demoPhase && theme.active,
-                  )}
-                >
-                  <DemoIcon className="h-4 w-4" />
-                  {phaseConfig[demoPhase].label}
-                </button>
-              )
-            })}
+            <span>Фаза:</span>
+            <button
+              type="button"
+              onClick={handleAdvancePhase}
+              disabled={phase === 'final' || isAdvancingPhase}
+              className="inline-flex h-9 items-center gap-2 rounded border border-neutral-700 bg-neutral-900/80 px-3 font-bold text-neutral-200 transition hover:border-red-500/80 hover:bg-red-500/15 disabled:pointer-events-none disabled:opacity-45"
+            >
+              <PhaseIcon className="h-4 w-4" />
+              {isAdvancingPhase ? 'Переходимо...' : getNextPhaseLabel(phase)}
+            </button>
+            {currentPhaseFeedback && (
+              <span className="basis-full text-right text-[0.7rem] font-bold text-red-300">
+                {currentPhaseFeedback}
+              </span>
+            )}
           </div>
         ) : (
           <div className="justify-self-end text-xs font-bold text-neutral-500 max-md:justify-self-center">

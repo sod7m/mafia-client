@@ -26,6 +26,7 @@ interface GameContextValue {
   loadRoom: (roomId: string, options?: { silent?: boolean }) => Promise<ActionResult>
   loadGame: (roomId: string, options?: { silent?: boolean }) => Promise<ActionResult>
   setGamePhase: (roomId: string, phase: GamePhase) => Promise<ActionResult>
+  advanceGamePhase: (roomId: string) => Promise<ActionResult>
   submitGameAction: (roomId: string, type: GameActionType, targetId: string) => Promise<ActionResult>
   createRoom: (roomName: string, maxPlayers: number) => Promise<ActionResult>
   joinRoom: (roomId: string) => Promise<ActionResult>
@@ -516,6 +517,30 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [requireToken],
   )
 
+  const advanceGamePhase = useCallback(
+    async (roomId: string): Promise<ActionResult> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
+        return { ok: false, error: 'Сесію користувача не знайдено.' }
+      }
+
+      try {
+        const response = await api.advanceGamePhase(currentToken, roomId)
+        setGames((currentGames) => ({
+          ...currentGames,
+          [response.game.roomId]: response.game,
+        }))
+        setApiError('')
+        return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
+      } catch (error) {
+        const message = getErrorMessage(error, 'Не вдалося перейти до наступної фази.')
+        setApiError(message)
+        return { ok: false, error: message }
+      }
+    },
+    [requireToken],
+  )
+
   const submitGameAction = useCallback(
     async (roomId: string, type: GameActionType, targetId: string): Promise<ActionResult> => {
       const currentToken = requireToken()
@@ -574,12 +599,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       leaveRoom,
       startRoom,
       setGamePhase,
+      advanceGamePhase,
       submitGameAction,
       getRoomById,
       getGameByRoomId,
     }),
     [
       apiError,
+      advanceGamePhase,
       availableRooms,
       createRoom,
       games,

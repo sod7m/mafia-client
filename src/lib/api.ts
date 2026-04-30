@@ -148,6 +148,10 @@ export const api = {
     )
   },
 
+  advanceGamePhase(token: string, roomId: string) {
+    return request<GameResponse>(`/api/games/${encodeURIComponent(roomId)}/next-phase`, { method: 'POST' }, token)
+  },
+
   submitGameAction(token: string, roomId: string, type: GameActionType, targetId: string) {
     return request<GameResponse>(
       `/api/games/${encodeURIComponent(roomId)}/actions`,
