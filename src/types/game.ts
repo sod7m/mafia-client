@@ -28,14 +28,25 @@ export interface Room {
 }
 
 export type GamePhase = 'night' | 'day' | 'voting' | 'final'
-export type GameRole = 'civilian' | 'mafia' | 'commissioner' | 'doctor'
-export type GameActionType = 'mafia_kill' | 'inspect' | 'heal' | 'vote'
+export type GameStep =
+  | 'night_mistress'
+  | 'night_doctor'
+  | 'night_commissioner'
+  | 'night_mafia'
+  | 'day_speech'
+  | 'day_discussion'
+  | 'voting'
+  | 'final'
+export type GameRole = 'civilian' | 'mafia' | 'mistress' | 'commissioner' | 'doctor'
+export type GameSide = 'town' | 'mafia'
+export type GameActionType = 'mafia_kill' | 'mistress_block' | 'inspect' | 'heal' | 'vote'
 
 export interface GamePlayer {
   id: string
   nickname: string
   isOwner: boolean
   role?: GameRole
+  side?: GameSide
   isAlive: boolean
 }
 
@@ -66,10 +77,16 @@ export interface Game {
   id: string
   roomId: string
   phase: GamePhase
+  step: GameStep
   round: number
   phaseStartedAt: string
   phaseEndsAt: string
   phaseDurationSeconds: number
+  activeRole?: GameRole
+  activePlayerId?: string
+  activePlayerNickname?: string
+  firstSpeakerIndex: number
+  speechIndex: number
   players: GamePlayer[]
   actions: GameAction[]
   events: GameEvent[]

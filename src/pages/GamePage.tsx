@@ -17,9 +17,10 @@ import {
   Vote,
 } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
-import type { GameActionType, GamePhase, GamePlayer, GameRole, RoomPlayer } from '../types/game.ts'
+import { MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
+import type { GameActionType, GamePhase, GamePlayer, GameRole, GameSide, GameStep, RoomPlayer } from '../types/game.ts'
 
-type RoleKind = 'commissioner' | 'mafia' | 'doctor' | 'civilian'
+type RoleKind = 'commissioner' | 'mafia' | 'mistress' | 'doctor' | 'civilian'
 type SelectionTone = 'danger' | 'inspect'
 
 interface PlayerRole {
@@ -68,20 +69,64 @@ const phaseConfig: Record<
   },
 }
 
+const stepConfig: Record<GameStep, { label: string; actionLabel: string; actionHint: string }> = {
+  night_mistress: {
+    label: 'Хід Коханки',
+    actionLabel: 'Блокування',
+    actionHint: 'Коханка обирає гравця, який не зможе виконати нічну дію.',
+  },
+  night_doctor: {
+    label: 'Хід Лікаря',
+    actionLabel: 'Лікування',
+    actionHint: 'Лікар обирає гравця, якого потрібно захистити від нічного пострілу.',
+  },
+  night_commissioner: {
+    label: 'Хід Комісара',
+    actionLabel: 'Перевірка',
+    actionHint: 'Комісар обирає гравця та дізнається тільки сторону: мирний або мафія.',
+  },
+  night_mafia: {
+    label: 'Хід Мафії',
+    actionLabel: 'Постріл',
+    actionHint: 'Усі живі незаблоковані мафіозі мають обрати одну й ту саму ціль.',
+  },
+  day_speech: {
+    label: 'Особиста промова',
+    actionLabel: 'Промова',
+    actionHint: 'Активний гравець говорить свою хвилину, інші не перебивають.',
+  },
+  day_discussion: {
+    label: 'Загальне обговорення',
+    actionLabel: 'Обговорення',
+    actionHint: 'Усі живі гравці можуть одночасно висловити підозри.',
+  },
+  voting: {
+    label: 'Голосування',
+    actionLabel: 'Вигнання',
+    actionHint: 'Оберіть живого гравця, за якого голосуєте на вигнання.',
+  },
+  final: {
+    label: 'Фінал',
+    actionLabel: 'Підсумок',
+    actionHint: 'Партія завершена.',
+  },
+}
+
 const rolePattern: PlayerRole[] = [
   { label: 'Комісар', team: 'Мирні', kind: 'commissioner' },
   { label: 'Мафія', team: 'Мафія', kind: 'mafia' },
   { label: 'Лікар', team: 'Мирні', kind: 'doctor' },
+  { label: 'Коханка', team: 'Мафія', kind: 'mistress' },
   { label: 'Мирний', team: 'Мирні', kind: 'civilian' },
   { label: 'Мирний', team: 'Мирні', kind: 'civilian' },
   { label: 'Мафія', team: 'Мафія', kind: 'mafia' },
-  { label: 'Мирний', team: 'Мирні', kind: 'civilian' },
   { label: 'Мирний', team: 'Мирні', kind: 'civilian' },
 ]
 
 const roleDetails: Record<GameRole, PlayerRole> = {
   commissioner: { label: 'Комісар', team: 'Мирні', kind: 'commissioner' },
   mafia: { label: 'Мафія', team: 'Мафія', kind: 'mafia' },
+  mistress: { label: 'Коханка', team: 'Мафія', kind: 'mistress' },
   doctor: { label: 'Лікар', team: 'Мирні', kind: 'doctor' },
   civilian: { label: 'Мирний', team: 'Мирні', kind: 'civilian' },
 }
@@ -102,26 +147,6 @@ const avatarToneClasses = [
   'bg-cyan-700 shadow-[0_0_38px_rgba(8,145,178,0.28)]',
   'bg-indigo-700 shadow-[0_0_38px_rgba(79,70,229,0.28)]',
   'bg-purple-700 shadow-[0_0_38px_rgba(126,34,206,0.28)]',
-]
-
-const demoPlayerNames = [
-  'Shadow',
-  'Medic',
-  'Margo',
-  'Nora',
-  'CrimsonX',
-  'QuietFox',
-  'Revolver',
-  'BlueJay',
-  'Phantom',
-  'Marta',
-  'Headliner',
-  'Ace',
-  'Ivy',
-  'Bolt',
-  'Vega',
-  'Raven',
-  'Nova',
 ]
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -152,35 +177,24 @@ function getInitials(nickname: string) {
   return cleanNickname.slice(0, 2).toUpperCase()
 }
 
-function getPlayerRole(_player: RoomPlayer, index: number, serverRole?: GameRole): PlayerRole {
+function getPlayerRole(_player: RoomPlayer, index: number, serverRole?: GameRole, serverSide?: GameSide): PlayerRole {
   if (serverRole) {
     return roleDetails[serverRole]
   }
 
-  return rolePattern[(index + 1) % rolePattern.length]
-}
-
-function getVisiblePlayers(players: RoomPlayer[], demoTargetCount = 10) {
-  const visiblePlayers = players.slice(0, 16)
-  const usedNicknames = new Set(visiblePlayers.map((player) => player.nickname))
-  let demoIndex = 0
-
-  while (visiblePlayers.length < demoTargetCount) {
-    const nickname = demoPlayerNames[demoIndex] ?? `Player ${visiblePlayers.length + 1}`
-    demoIndex += 1
-    if (usedNicknames.has(nickname)) {
-      continue
-    }
-
-    visiblePlayers.push({
-      id: `demo-player-${demoIndex}`,
-      nickname,
-      isOwner: false,
-    })
-    usedNicknames.add(nickname)
+  if (serverSide === 'mafia') {
+    return { label: 'Мафія', team: 'Мафія', kind: 'mafia' }
   }
 
-  return visiblePlayers
+  if (serverSide === 'town') {
+    return { label: 'Мирний', team: 'Мирні', kind: 'civilian' }
+  }
+
+  return rolePattern[index % rolePattern.length]
+}
+
+function getVisiblePlayers(players: RoomPlayer[]) {
+  return players.slice(0, 16)
 }
 
 function getRoomPlayersFromGame(players: GamePlayer[]): RoomPlayer[] {
@@ -276,41 +290,56 @@ function getSelectedClasses(isSelected: boolean, selectionTone: SelectionTone) {
   return 'border-cyan-300 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.75),0_0_28px_rgba(6,182,212,0.34)]'
 }
 
-function getActionType(phase: GamePhase, role?: PlayerRole): GameActionType | null {
-  if (phase === 'voting') {
+function getActionType(step: GameStep | undefined, role?: PlayerRole): GameActionType | null {
+  if (step === 'voting') {
     return 'vote'
   }
 
-  if (phase !== 'night') {
-    return null
+  if (step === 'night_mistress' && role?.kind === 'mistress') {
+    return 'mistress_block'
   }
-
-  if (role?.kind === 'mafia') {
+  if (step === 'night_mafia' && role?.kind === 'mafia') {
     return 'mafia_kill'
   }
-  if (role?.kind === 'commissioner') {
+  if (step === 'night_commissioner' && role?.kind === 'commissioner') {
     return 'inspect'
   }
-  if (role?.kind === 'doctor') {
+  if (step === 'night_doctor' && role?.kind === 'doctor') {
     return 'heal'
   }
 
   return null
 }
 
-function getInspectLabel(role?: GameRole) {
-  if (!role) {
+function getInspectLabel(role?: GameRole, side?: GameSide) {
+  if (side === 'mafia' || role === 'mafia' || role === 'mistress') {
+    return 'Мафія'
+  }
+
+  if (side === 'town' || role) {
+    return 'Мирний'
+  }
+
+  if (!role && !side) {
     return 'Невідомо'
   }
 
-  return role === 'mafia' ? 'Мафія' : 'Мирний'
+  return 'Невідомо'
 }
 
-function getNextPhaseLabel(phase: GamePhase) {
-  switch (phase) {
-    case 'night':
+function getNextStepLabel(step: GameStep) {
+  switch (step) {
+    case 'night_mistress':
+      return 'До лікаря'
+    case 'night_doctor':
+      return 'До комісара'
+    case 'night_commissioner':
+      return 'До мафії'
+    case 'night_mafia':
       return 'До дня'
-    case 'day':
+    case 'day_speech':
+      return 'Далі'
+    case 'day_discussion':
       return 'До голосування'
     case 'voting':
       return 'До ночі'
@@ -353,8 +382,9 @@ export function GamePage() {
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const game = useMemo(() => (id ? getGameByRoomId(id) : undefined), [getGameByRoomId, id])
   const phase = game?.phase ?? 'night'
+  const step = game?.step ?? (phase === 'voting' ? 'voting' : phase === 'final' ? 'final' : phase === 'day' ? 'day_speech' : 'night_mistress')
   const phaseNumber = game?.round ?? 1
-  const phaseKey = `${phase}:${phaseNumber}`
+  const phaseKey = `${phase}:${step}:${phaseNumber}:${game?.speechIndex ?? 0}`
   const selectedTargetId = selectedTargetChoice?.phaseKey === phaseKey ? selectedTargetChoice.playerId : null
   const currentActionFeedback = actionFeedback?.phaseKey === phaseKey ? actionFeedback.text : ''
   const currentPhaseFeedback = phaseFeedback?.phaseKey === phaseKey ? phaseFeedback.text : ''
@@ -373,7 +403,7 @@ export function GamePage() {
       new Map(
         visiblePlayers.map((player, index) => [
           player.id,
-          getPlayerRole(player, index, gamePlayersById.get(player.id)?.role),
+          getPlayerRole(player, index, gamePlayersById.get(player.id)?.role, gamePlayersById.get(player.id)?.side),
         ]),
       ),
     [gamePlayersById, visiblePlayers],
@@ -382,31 +412,25 @@ export function GamePage() {
   const selectedTarget = visiblePlayers.find((player) => player.id === selectedTargetId)
   const selectedTargetState = selectedTarget ? gamePlayersById.get(selectedTarget.id) : undefined
   const phaseDetails = phaseConfig[phase]
+  const stepDetails = stepConfig[step]
   const PhaseIcon = phaseDetails.icon
   const theme = getThemeClasses(phase)
   const playerGridLayout = getPlayerGridLayout(visiblePlayers.length)
   const playerBoardStyle = getPlayerBoardStyle(playerGridLayout)
   const avatarSizeClasses = getAvatarSizeClasses(visiblePlayers.length)
-  const currentActionType = getActionType(phase, currentRole)
+  const currentActionType = getActionType(step, currentRole)
   const canSelectTarget = !!currentActionType
-  const selectionTone: SelectionTone = currentRole?.kind === 'mafia' || phase === 'voting' ? 'danger' : 'inspect'
-  const currentTurn =
-    phase === 'night'
-      ? currentRole?.kind === 'mafia'
-        ? 'Хід Мафії'
-        : currentRole?.kind === 'commissioner'
-          ? 'Хід Комісара'
-          : currentRole?.kind === 'doctor'
-            ? 'Хід Лікаря'
-            : 'Хід нічних ролей'
-      : phase === 'voting'
-        ? 'Голосування міста'
-        : phase === 'day'
-          ? 'Обговорення міста'
-          : 'Фінал гри'
+  const selectionTone: SelectionTone = currentRole?.kind === 'mafia' || currentRole?.kind === 'mistress' || phase === 'voting' ? 'danger' : 'inspect'
+  const stepDisplayLabel =
+    step === 'day_speech' && game?.activePlayerNickname
+      ? `Особиста промова ${game.activePlayerNickname}`
+      : stepDetails.label
+  const currentTurn = stepDisplayLabel
   const confirmLabel =
-    phase === 'voting'
+    step === 'voting'
       ? 'Підтвердити голос'
+      : currentRole?.kind === 'mistress'
+        ? 'Підтвердити блокування'
       : currentRole?.kind === 'mafia'
         ? 'Підтвердити вбивство'
         : currentRole?.kind === 'doctor'
@@ -414,7 +438,7 @@ export function GamePage() {
           : 'Підтвердити перевірку'
   const recentEvents = useMemo(() => (game?.events ?? []).slice(-4).reverse(), [game?.events])
   const secondsLeft = phase === 'final' ? 0 : getSecondsLeft(game?.phaseEndsAt, nowMs)
-  const overlayText = phase === 'final' ? 'Фінал' : `${phaseDetails.label} ${phaseNumber}`
+  const overlayText = phase === 'final' ? 'Фінал' : stepDisplayLabel
 
   useEffect(() => {
     if (!id || room) {
@@ -493,7 +517,7 @@ export function GamePage() {
       navigate(`/room/${room.id}`)
       return
     }
-    if (room.players.length < 4) {
+    if (room.players.length < MIN_PLAYERS_IN_ROOM) {
       navigate(`/room/${room.id}`)
       return
     }
@@ -509,11 +533,11 @@ export function GamePage() {
       <div className="grid h-screen place-items-center overflow-hidden bg-[#050616] p-5 text-white">
         <div className="surface-card w-full max-w-lg rounded-2xl p-6 text-center">
           <h1 className="text-3xl font-bold">Гра ще не запущена</h1>
-          <p className="mt-3 text-[hsl(var(--muted-foreground))]">Для старту потрібно мінімум 4 гравці.</p>
+          <p className="mt-3 text-[hsl(var(--muted-foreground))]">Для старту потрібно мінімум {MIN_PLAYERS_IN_ROOM} гравців.</p>
           <button
             type="button"
             onClick={handleStartFromGame}
-            disabled={room.players.length < 4}
+            disabled={room.players.length < MIN_PLAYERS_IN_ROOM}
             className="btn-base btn-primary mt-5 px-5 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
           >
             Демо старт
@@ -596,7 +620,7 @@ export function GamePage() {
       setActionFeedback({
         text:
           inspectEvent?.message ??
-          `Результат перевірки: ${selectedTarget.nickname} — ${getInspectLabel(inspectedTarget?.role ?? selectedTargetState?.role)}`,
+          `Результат перевірки: ${selectedTarget.nickname} — ${getInspectLabel(inspectedTarget?.role ?? selectedTargetState?.role, inspectedTarget?.side ?? selectedTargetState?.side)}`,
         phaseKey,
       })
     } else {
@@ -625,7 +649,7 @@ export function GamePage() {
         <div className={cx('inline-flex items-center justify-center gap-4 rounded-lg border px-4 py-2 text-sm font-bold text-neutral-200 max-md:w-full max-md:justify-between max-md:text-xs', theme.border, theme.panel)}>
           <span className={cx('inline-flex items-center gap-2', theme.accent)}>
             <PhaseIcon className="h-4 w-4" />
-            {phaseDetails.label} {phaseNumber}
+            {stepDisplayLabel}
           </span>
           <span>{formatTimer(secondsLeft)}</span>
           <span className="inline-flex items-center gap-2">
@@ -676,6 +700,10 @@ export function GamePage() {
                       getSelectedClasses(isSelected, selectionTone),
                     )}
                   >
+                    <span className="absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center rounded bg-black/55 px-1.5 text-xs font-black text-neutral-100">
+                      {index + 1}
+                    </span>
+
                     <span className={cx('place-self-center inline-flex items-center justify-center rounded-full font-black', avatarSizeClasses, avatarToneClasses[index % avatarToneClasses.length])}>
                       {getInitials(player.nickname)}
                     </span>
@@ -718,10 +746,10 @@ export function GamePage() {
           <section className={cx('rounded-xl border p-4', theme.border, theme.panel)}>
             <p className="mb-3 text-xs font-extrabold uppercase text-neutral-500">Зараз</p>
             <h2 className="font-black">{currentTurn}</h2>
-            <p className="mt-2 text-sm leading-6 text-neutral-500">{phaseDetails.actionHint}</p>
+            <p className="mt-2 text-sm leading-6 text-neutral-500">{stepDetails.actionHint}</p>
 
             <div className="my-4 grid gap-1 rounded-lg bg-white/5 p-3">
-              <span className="text-xs font-extrabold uppercase text-neutral-500">{phaseDetails.actionLabel}</span>
+              <span className="text-xs font-extrabold uppercase text-neutral-500">{stepDetails.actionLabel}</span>
               <strong className="text-sm">
                 {selectedTarget
                   ? selectedTargetState?.isAlive === false
@@ -819,7 +847,7 @@ export function GamePage() {
               className="inline-flex h-9 items-center gap-2 rounded border border-neutral-700 bg-neutral-900/80 px-3 font-bold text-neutral-200 transition hover:border-red-500/80 hover:bg-red-500/15 disabled:pointer-events-none disabled:opacity-45"
             >
               <PhaseIcon className="h-4 w-4" />
-              {isAdvancingPhase ? 'Переходимо...' : getNextPhaseLabel(phase)}
+              {isAdvancingPhase ? 'Переходимо...' : getNextStepLabel(step)}
             </button>
             {currentPhaseFeedback && (
               <span className="basis-full text-right text-[0.7rem] font-bold text-red-300">

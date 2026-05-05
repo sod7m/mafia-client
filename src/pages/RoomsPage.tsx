@@ -219,7 +219,8 @@ export function RoomsPage() {
                           event.stopPropagation()
                           handleForceStartFromList(room.id)
                         }}
-                        className="btn-base btn-primary btn-room w-full px-4 py-3 text-sm"
+                        disabled={room.players.length < MIN_PLAYERS_IN_ROOM}
+                        className="btn-base btn-primary btn-room w-full px-4 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
                       >
                         <Play className="h-4 w-4" />
                         Демо старт

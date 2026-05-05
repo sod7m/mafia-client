@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Check, Copy, LogOut, Play, UserRound, Users } from 'lucide-react'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
-import { roomStatusLabel } from '../lib/roomStatus.ts'
+import { MIN_PLAYERS_IN_ROOM, roomStatusLabel } from '../lib/roomStatus.ts'
 import type { RoomStatus } from '../types/game.ts'
 
 const statusClass: Record<RoomStatus, string> = {
@@ -24,7 +24,7 @@ export function RoomPage() {
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const isParticipant = !!(room && user && room.players.some((player) => player.id === user.id))
   const isRoomOwner = !!(room && user && room.ownerId === user.id)
-  const hasEnoughPlayersToStart = !!room && room.players.length >= 4
+  const hasEnoughPlayersToStart = !!room && room.players.length >= MIN_PLAYERS_IN_ROOM
   const roomStatusBadge =
     room && (room.status === 'waiting' || room.status === 'recruiting' || room.status === 'preparation')
       ? { label: 'Очікування', className: 'status-waiting' }
@@ -249,7 +249,7 @@ export function RoomPage() {
             <h3 className="mb-3 text-xl font-bold">Стан кімнати</h3>
             <ul className="space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
               <li>• Кімната доступна, доки власник не натисне «Демо старт».</li>
-              <li>• Для старту потрібно мінімум 4 гравці.</li>
+              <li>• Для старту потрібно мінімум {MIN_PLAYERS_IN_ROOM} гравців.</li>
               <li>• Після старту вона зникає зі списку загальних кімнат.</li>
               <li>• Старт і керування фазами доступні тільки власнику кімнати.</li>
             </ul>
