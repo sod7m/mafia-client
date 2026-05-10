@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { LOBBY_STATUSES } from '../lib/roomStatus.ts'
-import { api, ApiError, WS_URL } from '../lib/api.ts'
+import { api, ApiError, type RecoveryResponse, WS_URL } from '../lib/api.ts'
 import type { ActionResult, Game, GameActionType, GamePhase, Room, UserSession } from '../types/game.ts'
 
 interface GameContextValue {
@@ -109,6 +109,10 @@ function syncAvailableRooms(currentRooms: Room[], availableRooms: Room[]) {
   return [...availableRooms, ...preservedRooms]
 }
 
+function mergeRecoveredRooms(currentRooms: Room[], recoveredRooms: Room[]) {
+  return recoveredRooms.reduce((acc, room) => upsertRoom(acc, room), currentRooms)
+}
+
 export function GameProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => readSession<string | null>(TOKEN_STORAGE_KEY, null))
   const [user, setUser] = useState<UserSession | null>(() =>
@@ -133,6 +137,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setToken(null)
     setRooms([])
     setGames({})
+  }, [])
+
+  const hydrateRecovery = useCallback((recovery: RecoveryResponse) => {
+    setUser(recovery.user)
+    setRooms((currentRooms) => mergeRecoveredRooms(currentRooms, recovery.rooms))
+    setGames((currentGames) => {
+      if (recovery.games.length === 0) {
+        return currentGames
+      }
+
+      const nextGames = { ...currentGames }
+      for (const game of recovery.games) {
+        nextGames[game.roomId] = game
+      }
+      return nextGames
+    })
+    setApiError('')
   }, [])
 
   const refreshRooms = useCallback(async (): Promise<ActionResult> => {
@@ -215,6 +236,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       socket = new WebSocket(WS_URL)
 
+      socket.onopen = () => {
+        if (!token) {
+          return
+        }
+
+        void api
+          .recover(token)
+          .then((recovery) => {
+            if (!isActive) {
+              return
+            }
+            hydrateRecovery(recovery)
+          })
+          .catch(() => {
+            // Realtime reconnect fallback remains HTTP polling if recovery call fails.
+          })
+      }
+
       socket.onmessage = (event) => {
         try {
           const realtimeEvent = JSON.parse(event.data) as RealtimeEvent
@@ -294,7 +333,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       socket?.close()
     }
-  }, [token])
+  }, [hydrateRecovery, token])
 
   useEffect(() => {
     if (!token) {
@@ -306,11 +345,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     async function validateSession() {
       try {
-        const response = await api.me(currentToken)
+        const recovery = await api.recover(currentToken)
         if (!isActive) {
           return
         }
-        setUser(response.user)
+        hydrateRecovery(recovery)
       } catch {
         if (isActive) {
           clearSession()
@@ -323,7 +362,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => {
       isActive = false
     }
-  }, [clearSession, token])
+  }, [clearSession, hydrateRecovery, token])
 
   const login = useCallback(async (nickname: string): Promise<ActionResult> => {
     const cleanNickname = nickname.trim()

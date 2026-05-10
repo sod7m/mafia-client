@@ -14,6 +14,13 @@ interface MeResponse {
   user: UserSession
 }
 
+export interface RecoveryResponse {
+  user: UserSession
+  rooms: Room[]
+  games: Game[]
+  activeRoomId?: string
+}
+
 interface RoomResponse {
   room: Room
 }
@@ -100,6 +107,10 @@ export const api = {
 
   me(token: string) {
     return request<MeResponse>('/api/me', {}, token)
+  },
+
+  recover(token: string) {
+    return request<RecoveryResponse>('/api/recovery', {}, token)
   },
 
   listRooms() {

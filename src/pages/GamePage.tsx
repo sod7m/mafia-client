@@ -420,6 +420,7 @@ export function GamePage() {
   const avatarSizeClasses = getAvatarSizeClasses(visiblePlayers.length)
   const currentActionType = getActionType(step, currentRole)
   const canSelectTarget = !!currentActionType
+  const canSelfTarget = currentActionType === 'heal' || currentActionType === 'mafia_kill'
   const selectionTone: SelectionTone = currentRole?.kind === 'mafia' || currentRole?.kind === 'mistress' || phase === 'voting' ? 'danger' : 'inspect'
   const stepDisplayLabel =
     step === 'day_speech' && game?.activePlayerNickname
@@ -590,7 +591,7 @@ export function GamePage() {
     if (!canSelectTarget || !playerState || playerState.isAlive === false) {
       return
     }
-    if (isSelf && currentActionType !== 'heal') {
+    if (isSelf && !canSelfTarget) {
       return
     }
 
@@ -683,7 +684,7 @@ export function GamePage() {
                   canSelectTarget &&
                   !!playerState &&
                   isAlive &&
-                  (!isSelf || currentActionType === 'heal')
+                  (!isSelf || canSelfTarget)
 
                 return (
                   <button
