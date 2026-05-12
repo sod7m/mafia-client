@@ -17,6 +17,7 @@ import {
   Vote,
 } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
+import { GameOverScreen } from '../components/GameOverScreen.tsx'
 import { MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
 import type { GameActionType, GamePhase, GamePlayer, GameRole, GameSide, GameStep, RoomPlayer } from '../types/game.ts'
 
@@ -559,13 +560,27 @@ export function GamePage() {
     )
   }
 
+  const navigateToLobby = async () => {
+    await leaveRoom(room.id)
+    navigate('/rooms')
+  }
+
   const handleLeaveGame = async () => {
     if (!window.confirm('Ви впевнені, що хочете покинути гру?')) {
       return
     }
 
-    await leaveRoom(room.id)
-    navigate('/rooms')
+    await navigateToLobby()
+  }
+
+  if (phase === 'final' && game) {
+    return (
+      <GameOverScreen
+        game={game}
+        currentUserId={user?.id}
+        onLeave={() => void navigateToLobby()}
+      />
+    )
   }
 
   const handleAdvancePhase = async () => {
