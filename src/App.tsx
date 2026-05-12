@@ -19,20 +19,33 @@ function getRoomIdFromPath(pathname: string) {
   return decodeURIComponent(match[1])
 }
 
+function isGamePath(pathname: string) {
+  return /^\/room\/[^/]+\/game$/.test(pathname)
+}
+
+interface PathState {
+  roomId: string | null
+  isGame: boolean
+}
+
 export default function App() {
   const location = useLocation()
   const { leaveRoom, user } = useGame()
-  const previousRoomIdRef = useRef<string | null>(getRoomIdFromPath(location.pathname))
+
+  const previousRef = useRef<PathState>({
+    roomId: getRoomIdFromPath(location.pathname),
+    isGame: isGamePath(location.pathname),
+  })
 
   useEffect(() => {
     const currentRoomId = getRoomIdFromPath(location.pathname)
-    const previousRoomId = previousRoomIdRef.current
+    const { roomId: previousRoomId, isGame: previousWasGame } = previousRef.current
 
-    if (previousRoomId && previousRoomId !== currentRoomId && user) {
+    if (previousRoomId && previousRoomId !== currentRoomId && user && !previousWasGame) {
       void leaveRoom(previousRoomId)
     }
 
-    previousRoomIdRef.current = currentRoomId
+    previousRef.current = { roomId: currentRoomId, isGame: isGamePath(location.pathname) }
   }, [leaveRoom, location.pathname, user])
 
   return (

@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react'
 import { LOBBY_STATUSES } from '../lib/roomStatus.ts'
-import { api, ApiError, WS_URL } from '../lib/api.ts'
+import { api, ApiError, type RecoveryResponse, WS_URL } from '../lib/api.ts'
 import type { ActionResult, Game, GameActionType, GamePhase, Room, UserSession } from '../types/game.ts'
 
 interface GameContextValue {
@@ -20,6 +20,7 @@ interface GameContextValue {
   availableRooms: Room[]
   isLoading: boolean
   apiError: string
+  wsConnected: boolean
   login: (nickname: string) => Promise<ActionResult>
   logout: () => Promise<void>
   refreshRooms: () => Promise<ActionResult>
@@ -109,6 +110,10 @@ function syncAvailableRooms(currentRooms: Room[], availableRooms: Room[]) {
   return [...availableRooms, ...preservedRooms]
 }
 
+function mergeRecoveredRooms(currentRooms: Room[], recoveredRooms: Room[]) {
+  return recoveredRooms.reduce((acc, room) => upsertRoom(acc, room), currentRooms)
+}
+
 export function GameProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => readSession<string | null>(TOKEN_STORAGE_KEY, null))
   const [user, setUser] = useState<UserSession | null>(() =>
@@ -118,6 +123,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [games, setGames] = useState<Record<string, Game>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [apiError, setApiError] = useState('')
+  const [wsConnected, setWsConnected] = useState(false)
   const reconnectTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -135,11 +141,28 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setGames({})
   }, [])
 
+  const hydrateRecovery = useCallback((recovery: RecoveryResponse) => {
+    setUser(recovery.user)
+    setRooms((currentRooms) => mergeRecoveredRooms(currentRooms, recovery.rooms))
+    setGames((currentGames) => {
+      if (recovery.games.length === 0) {
+        return currentGames
+      }
+
+      const nextGames = { ...currentGames }
+      for (const game of recovery.games) {
+        nextGames[game.roomId] = game
+      }
+      return nextGames
+    })
+    setApiError('')
+  }, [])
+
   const refreshRooms = useCallback(async (): Promise<ActionResult> => {
     setIsLoading(true)
     try {
       const response = await api.listRooms()
-      setRooms(response.rooms)
+      setRooms((currentRooms) => syncAvailableRooms(currentRooms, response.rooms))
       setApiError('')
       return { ok: true }
     } catch (error) {
@@ -215,6 +238,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       socket = new WebSocket(WS_URL)
 
+      socket.onopen = () => {
+        setWsConnected(true)
+      }
+
       socket.onmessage = (event) => {
         try {
           const realtimeEvent = JSON.parse(event.data) as RealtimeEvent
@@ -273,6 +300,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
 
       socket.onclose = () => {
+        setWsConnected(false)
         if (!isActive) {
           return
         }
@@ -306,13 +334,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     async function validateSession() {
       try {
-        const response = await api.me(currentToken)
+        const recovery = await api.recover(currentToken)
         if (!isActive) {
           return
         }
-        setUser(response.user)
-      } catch {
-        if (isActive) {
+        hydrateRecovery(recovery)
+      } catch (err) {
+        // Only clear session on explicit auth rejection (401/403).
+        // Network errors, server restarts, or transient failures must NOT
+        // evict a freshly-set token and kick the user back to the login screen.
+        if (isActive && err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           clearSession()
         }
       }
@@ -323,7 +354,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     return () => {
       isActive = false
     }
-  }, [clearSession, token])
+  }, [clearSession, hydrateRecovery, token])
 
   const login = useCallback(async (nickname: string): Promise<ActionResult> => {
     const cleanNickname = nickname.trim()
@@ -427,7 +458,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: 'Введіть код кімнати.' }
       }
 
-      const room = rooms.find((currentRoom) => currentRoom.code === cleanCode)
+      let room = rooms.find((currentRoom) => currentRoom.code === cleanCode)
+      if (!room) {
+        // Room may have been created after our last list fetch — fetch once and retry.
+        try {
+          const response = await api.listRooms()
+          setRooms((currentRooms) => syncAvailableRooms(currentRooms, response.rooms))
+          room = response.rooms.find((currentRoom) => currentRoom.code === cleanCode)
+        } catch {
+          // Ignore fetch error — will fall through to "not found" message below.
+        }
+      }
       if (!room) {
         return { ok: false, error: 'Код не знайдено або кімната вже недоступна.' }
       }
@@ -588,6 +629,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       availableRooms,
       isLoading,
       apiError,
+      wsConnected,
       login,
       logout,
       refreshRooms,
@@ -613,6 +655,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       getGameByRoomId,
       getRoomById,
       isLoading,
+      wsConnected,
       joinRoom,
       joinRoomByCode,
       leaveRoom,
