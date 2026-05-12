@@ -363,6 +363,7 @@ export function GamePage() {
     getGameByRoomId,
     getRoomById,
     isLoading,
+    wsConnected,
     advanceGamePhase,
     leaveRoom,
     loadGame,
@@ -458,7 +459,7 @@ export function GamePage() {
   }, [game, id, loadGame, room])
 
   useEffect(() => {
-    if (!id || !room) {
+    if (!id || !room || wsConnected) {
       return
     }
 
@@ -467,10 +468,10 @@ export function GamePage() {
     }, 5000)
 
     return () => window.clearInterval(intervalId)
-  }, [id, loadRoom, room])
+  }, [id, loadRoom, room, wsConnected])
 
   useEffect(() => {
-    if (!id || !game) {
+    if (!id || !game || wsConnected) {
       return
     }
 
@@ -479,7 +480,7 @@ export function GamePage() {
     }, 5000)
 
     return () => window.clearInterval(intervalId)
-  }, [game, id, loadGame])
+  }, [game, id, loadGame, wsConnected])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -559,6 +560,10 @@ export function GamePage() {
   }
 
   const handleLeaveGame = async () => {
+    if (!window.confirm('Ви впевнені, що хочете покинути гру?')) {
+      return
+    }
+
     await leaveRoom(room.id)
     navigate('/rooms')
   }
@@ -634,7 +639,7 @@ export function GamePage() {
     <div className={cx('flex h-screen flex-col overflow-hidden text-white', theme.page)}>
       {game && (
         <div
-          key={overlayText}
+          key={`${phase}:${step}:${phaseNumber}`}
           className="pointer-events-none fixed inset-0 z-[80] grid animate-[phaseOverlay_1.2s_ease_forwards] place-items-center bg-black/80 text-6xl font-black max-sm:text-5xl"
         >
           {overlayText}

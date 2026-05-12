@@ -20,6 +20,7 @@ interface GameContextValue {
   availableRooms: Room[]
   isLoading: boolean
   apiError: string
+  wsConnected: boolean
   login: (nickname: string) => Promise<ActionResult>
   logout: () => Promise<void>
   refreshRooms: () => Promise<ActionResult>
@@ -122,6 +123,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [games, setGames] = useState<Record<string, Game>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [apiError, setApiError] = useState('')
+  const [wsConnected, setWsConnected] = useState(false)
   const reconnectTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -160,7 +162,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const response = await api.listRooms()
-      setRooms(response.rooms)
+      setRooms((currentRooms) => syncAvailableRooms(currentRooms, response.rooms))
       setApiError('')
       return { ok: true }
     } catch (error) {
@@ -237,21 +239,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       socket = new WebSocket(WS_URL)
 
       socket.onopen = () => {
-        if (!token) {
-          return
-        }
-
-        void api
-          .recover(token)
-          .then((recovery) => {
-            if (!isActive) {
-              return
-            }
-            hydrateRecovery(recovery)
-          })
-          .catch(() => {
-            // Realtime reconnect fallback remains HTTP polling if recovery call fails.
-          })
+        setWsConnected(true)
       }
 
       socket.onmessage = (event) => {
@@ -312,6 +300,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
 
       socket.onclose = () => {
+        setWsConnected(false)
         if (!isActive) {
           return
         }
@@ -333,7 +322,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       }
       socket?.close()
     }
-  }, [hydrateRecovery, token])
+  }, [token])
 
   useEffect(() => {
     if (!token) {
@@ -350,8 +339,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
           return
         }
         hydrateRecovery(recovery)
-      } catch {
-        if (isActive) {
+      } catch (err) {
+        // Only clear session on explicit auth rejection (401/403).
+        // Network errors, server restarts, or transient failures must NOT
+        // evict a freshly-set token and kick the user back to the login screen.
+        if (isActive && err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           clearSession()
         }
       }
@@ -466,7 +458,17 @@ export function GameProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: 'Введіть код кімнати.' }
       }
 
-      const room = rooms.find((currentRoom) => currentRoom.code === cleanCode)
+      let room = rooms.find((currentRoom) => currentRoom.code === cleanCode)
+      if (!room) {
+        // Room may have been created after our last list fetch — fetch once and retry.
+        try {
+          const response = await api.listRooms()
+          setRooms((currentRooms) => syncAvailableRooms(currentRooms, response.rooms))
+          room = response.rooms.find((currentRoom) => currentRoom.code === cleanCode)
+        } catch {
+          // Ignore fetch error — will fall through to "not found" message below.
+        }
+      }
       if (!room) {
         return { ok: false, error: 'Код не знайдено або кімната вже недоступна.' }
       }
@@ -627,6 +629,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       availableRooms,
       isLoading,
       apiError,
+      wsConnected,
       login,
       logout,
       refreshRooms,
@@ -652,6 +655,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       getGameByRoomId,
       getRoomById,
       isLoading,
+      wsConnected,
       joinRoom,
       joinRoomByCode,
       leaveRoom,
