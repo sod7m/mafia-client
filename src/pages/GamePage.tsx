@@ -328,7 +328,7 @@ function getInspectLabel(role?: GameRole, side?: GameSide) {
   return 'Невідомо'
 }
 
-function getNextStepLabel(step: GameStep) {
+function getNextStepLabel(step: GameStep, isIntroRound = false) {
   switch (step) {
     case 'night_mistress':
       return 'До лікаря'
@@ -341,7 +341,7 @@ function getNextStepLabel(step: GameStep) {
     case 'day_speech':
       return 'Далі'
     case 'day_discussion':
-      return 'До голосування'
+      return isIntroRound ? 'До ночі' : 'До голосування'
     case 'voting':
       return 'До ночі'
     default:
@@ -386,6 +386,7 @@ export function GamePage() {
   const phase = game?.phase ?? 'night'
   const step = game?.step ?? (phase === 'voting' ? 'voting' : phase === 'final' ? 'final' : phase === 'day' ? 'day_speech' : 'night_mistress')
   const phaseNumber = game?.round ?? 1
+  const isIntroRound = phaseNumber <= 1
   const phaseKey = `${phase}:${step}:${phaseNumber}:${game?.speechIndex ?? 0}`
   const selectedTargetId = selectedTargetChoice?.phaseKey === phaseKey ? selectedTargetChoice.playerId : null
   const currentActionFeedback = actionFeedback?.phaseKey === phaseKey ? actionFeedback.text : ''
@@ -420,8 +421,15 @@ export function GamePage() {
   const playerGridLayout = getPlayerGridLayout(visiblePlayers.length)
   const playerBoardStyle = getPlayerBoardStyle(playerGridLayout)
   const avatarSizeClasses = getAvatarSizeClasses(visiblePlayers.length)
-  const currentActionType = getActionType(step, currentRole)
+  // Перший раунд ознайомчий: ролі лише прокидаються по черзі, нічних ходів
+  // і голосування немає — тому дії на цьому раунді недоступні.
+  const currentActionType = isIntroRound ? null : getActionType(step, currentRole)
   const canSelectTarget = !!currentActionType
+  const stepHint = isIntroRound
+    ? phase === 'night'
+      ? 'Ознайомча ніч: ролі прокидаються по черзі, щоб мафія познайомилась між собою. Нічних ходів немає.'
+      : 'Ознайомчий день: усі говорять по черзі. Голосування на вигнання сьогодні немає.'
+    : stepDetails.actionHint
   const canSelfTarget = currentActionType === 'heal' || currentActionType === 'mafia_kill'
   const selectionTone: SelectionTone = currentRole?.kind === 'mafia' || currentRole?.kind === 'mistress' || phase === 'voting' ? 'danger' : 'inspect'
   const stepDisplayLabel =
@@ -767,7 +775,7 @@ export function GamePage() {
           <section className={cx('rounded-xl border p-4', theme.border, theme.panel)}>
             <p className="mb-3 text-xs font-extrabold uppercase text-neutral-500">Зараз</p>
             <h2 className="font-black">{currentTurn}</h2>
-            <p className="mt-2 text-sm leading-6 text-neutral-500">{stepDetails.actionHint}</p>
+            <p className="mt-2 text-sm leading-6 text-neutral-500">{stepHint}</p>
 
             <div className="my-4 grid gap-1 rounded-lg bg-white/5 p-3">
               <span className="text-xs font-extrabold uppercase text-neutral-500">{stepDetails.actionLabel}</span>
@@ -868,7 +876,7 @@ export function GamePage() {
               className="inline-flex h-9 items-center gap-2 rounded border border-neutral-700 bg-neutral-900/80 px-3 font-bold text-neutral-200 transition hover:border-red-500/80 hover:bg-red-500/15 disabled:pointer-events-none disabled:opacity-45"
             >
               <PhaseIcon className="h-4 w-4" />
-              {isAdvancingPhase ? 'Переходимо...' : getNextStepLabel(step)}
+              {isAdvancingPhase ? 'Переходимо...' : getNextStepLabel(step, isIntroRound)}
             </button>
             {currentPhaseFeedback && (
               <span className="basis-full text-right text-[0.7rem] font-bold text-red-300">
