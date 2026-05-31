@@ -1,0 +1,10 @@
+{
+  // Cloudflare Workers static-assets config: serve the built SPA from ./dist
+  // with single-page-application routing (unknown paths -> index.html).
+  "name": "mafia-client",
+  "compatibility_date": "2025-05-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
