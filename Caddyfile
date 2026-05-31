@@ -1,0 +1,20 @@
+# Caddy serves the built SPA and reverse-proxies the API/WebSocket to the Go
+# backend. {$DOMAIN} comes from the environment:
+#   - a real hostname (e.g. mafia.example.com) -> automatic Let's Encrypt HTTPS
+#   - ":80" for local/no-domain testing (plain HTTP)
+{$DOMAIN::80} {
+	encode gzip
+
+	# Backend: REST API, WebSocket and health check.
+	@backend path /api/* /ws /healthz
+	handle @backend {
+		reverse_proxy server:8080
+	}
+
+	# Frontend: static SPA with client-side routing fallback.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}
