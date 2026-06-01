@@ -702,7 +702,6 @@ export function GamePage() {
               style={playerBoardStyle}
             >
               {visiblePlayers.map((player, index) => {
-                const role = playerRoles.get(player.id)
                 const playerState = gamePlayersById.get(player.id)
                 const isAlive = playerState?.isAlive ?? true
                 const isSelected = selectedTargetId === player.id
@@ -747,7 +746,6 @@ export function GamePage() {
                     </span>
 
                     <span className="absolute right-2 top-2 inline-flex items-center gap-1 text-[0.68rem] font-bold text-neutral-400">
-                      {role?.team}
                       {isMuted && <MicOff className="h-3.5 w-3.5" />}
                       {isCameraOff && <CameraOff className="h-3.5 w-3.5" />}
                     </span>
