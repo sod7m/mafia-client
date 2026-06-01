@@ -5,6 +5,26 @@ const DEFAULT_API_BASE_URL = 'http://localhost:8080'
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? DEFAULT_API_BASE_URL
 export const WS_URL = buildWebSocketUrl(API_BASE_URL)
 
+// Estimated difference (ms) between the server clock and this client's clock,
+// derived from the server `Date` response header. Used to keep phase timers in
+// sync across players whose local clocks differ.
+let serverClockOffsetMs = 0
+
+export function getServerClockOffset(): number {
+  return serverClockOffsetMs
+}
+
+function updateServerClockOffset(response: Response) {
+  const serverDate = response.headers.get('Date')
+  if (!serverDate) {
+    return
+  }
+  const serverMs = new Date(serverDate).getTime()
+  if (!Number.isNaN(serverMs)) {
+    serverClockOffsetMs = serverMs - Date.now()
+  }
+}
+
 interface LoginResponse {
   user: UserSession
   token: string
@@ -71,6 +91,8 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
     ...options,
     headers,
   })
+
+  updateServerClockOffset(response)
 
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`

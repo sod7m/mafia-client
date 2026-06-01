@@ -17,6 +17,7 @@ import {
   Vote,
 } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
+import { getServerClockOffset } from '../lib/api.ts'
 import { GameOverScreen } from '../components/GameOverScreen.tsx'
 import { MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
 import type { GameActionType, GamePhase, GamePlayer, GameRole, GameSide, GameStep, RoomPlayer } from '../types/game.ts'
@@ -373,7 +374,7 @@ export function GamePage() {
     submitGameAction,
     user,
   } = useGame()
-  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [nowMs, setNowMs] = useState(() => Date.now() + getServerClockOffset())
   const [selectedTargetChoice, setSelectedTargetChoice] = useState<{ playerId: string; phaseKey: string } | null>(null)
   const [actionFeedback, setActionFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [phaseFeedback, setPhaseFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
@@ -493,7 +494,7 @@ export function GamePage() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setNowMs(Date.now())
+      setNowMs(Date.now() + getServerClockOffset())
     }, 1000)
 
     return () => window.clearInterval(timer)
@@ -662,7 +663,7 @@ export function GamePage() {
     <div className={cx('flex h-screen flex-col overflow-hidden text-white', theme.page)}>
       {game && (
         <div
-          key={`${phase}:${step}:${phaseNumber}`}
+          key={`${phase}:${step}:${phaseNumber}:${game.speechIndex ?? 0}`}
           className="pointer-events-none fixed inset-0 z-[80] grid animate-[phaseOverlay_1.2s_ease_forwards] place-items-center bg-black/80 text-6xl font-black max-sm:text-5xl"
         >
           {overlayText}
