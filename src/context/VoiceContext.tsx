@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Room, RoomEvent, Track, type Participant, type RemoteTrack } from 'livekit-client'
 
 export interface ParticipantMedia {
@@ -10,6 +10,16 @@ export interface ParticipantMedia {
   isSpeaking: boolean
 }
 
+// Who may subscribe to my published tracks: everyone, nobody, or a specific
+// list of participant identities (used to keep night cameras secret).
+export type VoiceVisibility = 'all' | 'none' | string[]
+
+export interface VoiceIntent {
+  mic: boolean
+  cam: boolean
+  visibility: VoiceVisibility
+}
+
 interface VoiceContextValue {
   connected: boolean
   media: Map<string, ParticipantMedia>
@@ -17,6 +27,7 @@ interface VoiceContextValue {
   camOn: boolean
   toggleMic: () => void
   toggleCam: () => void
+  applyVoiceIntent: (intent: VoiceIntent) => void
   error: string | null
 }
 
@@ -27,6 +38,7 @@ const VoiceContext = createContext<VoiceContextValue>({
   camOn: false,
   toggleMic: () => {},
   toggleCam: () => {},
+  applyVoiceIntent: () => {},
   error: null,
 })
 
@@ -152,8 +164,31 @@ export function VoiceProvider({ url, token, enabled, children }: VoiceProviderPr
       .catch(() => setError('Немає доступу до камери'))
   }
 
+  // Drive mic/camera and track-subscription visibility from the game state.
+  const applyVoiceIntent = useCallback((intent: VoiceIntent) => {
+    const room = roomRef.current
+    if (!room) return
+    const localParticipant = room.localParticipant
+
+    // Set who may subscribe to my tracks BEFORE (re)publishing the camera, so a
+    // secret night camera is never briefly visible to everyone.
+    if (intent.visibility === 'all') {
+      localParticipant.setTrackSubscriptionPermissions(true, [])
+    } else if (intent.visibility === 'none') {
+      localParticipant.setTrackSubscriptionPermissions(false, [])
+    } else {
+      localParticipant.setTrackSubscriptionPermissions(
+        false,
+        intent.visibility.map((identity) => ({ participantIdentity: identity, allowAll: true })),
+      )
+    }
+
+    void localParticipant.setMicrophoneEnabled(intent.mic).catch(() => {})
+    void localParticipant.setCameraEnabled(intent.cam).catch(() => setError('Немає доступу до камери'))
+  }, [])
+
   return (
-    <VoiceContext.Provider value={{ connected, media, micOn, camOn, toggleMic, toggleCam, error }}>
+    <VoiceContext.Provider value={{ connected, media, micOn, camOn, toggleMic, toggleCam, applyVoiceIntent, error }}>
       {children}
       <div ref={audioContainerRef} className="hidden" aria-hidden />
     </VoiceContext.Provider>

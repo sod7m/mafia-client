@@ -36,6 +36,7 @@ export type GameStep =
   | 'day_speech'
   | 'day_discussion'
   | 'voting'
+  | 'day_last_word'
   | 'final'
 export type GameRole = 'civilian' | 'mafia' | 'mistress' | 'commissioner' | 'doctor'
 export type GameSide = 'town' | 'mafia'
@@ -87,6 +88,7 @@ export interface Game {
   activePlayerNickname?: string
   firstSpeakerIndex: number
   speechIndex: number
+  pendingExileId?: string
   players: GamePlayer[]
   actions: GameAction[]
   events: GameEvent[]

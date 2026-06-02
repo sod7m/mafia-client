@@ -18,11 +18,11 @@ import {
   Vote,
 } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
-import { VoiceProvider, useVoice } from '../context/VoiceContext.tsx'
+import { VoiceProvider, useVoice, type VoiceIntent, type VoiceVisibility } from '../context/VoiceContext.tsx'
 import { getServerClockOffset } from '../lib/api.ts'
 import { GameOverScreen } from '../components/GameOverScreen.tsx'
 import { MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
-import type { GameActionType, GamePhase, GamePlayer, GameRole, GameSide, GameStep, RoomPlayer } from '../types/game.ts'
+import type { Game, GameActionType, GamePhase, GamePlayer, GameRole, GameSide, GameStep, RoomPlayer } from '../types/game.ts'
 
 type RoleKind = 'commissioner' | 'mafia' | 'mistress' | 'doctor' | 'civilian'
 type SelectionTone = 'danger' | 'inspect'
@@ -108,6 +108,11 @@ const stepConfig: Record<GameStep, { label: string; actionLabel: string; actionH
     label: 'Голосування',
     actionLabel: 'Вигнання',
     actionHint: 'Оберіть живого гравця, за якого голосуєте на вигнання.',
+  },
+  day_last_word: {
+    label: 'Останнє слово',
+    actionLabel: 'Останнє слово',
+    actionHint: 'Вигнаний гравець говорить останнє слово. Далі він вибуває з гри.',
   },
   final: {
     label: 'Фінал',
@@ -346,6 +351,8 @@ function getNextStepLabel(step: GameStep, isIntroRound = false) {
     case 'day_discussion':
       return isIntroRound ? 'До ночі' : 'До голосування'
     case 'voting':
+      return 'До останнього слова'
+    case 'day_last_word':
       return 'До ночі'
     default:
       return 'Гру завершено'
@@ -358,6 +365,51 @@ function getSecondsLeft(phaseEndsAt: string | undefined, nowMs: number) {
   }
 
   return Math.max(0, Math.ceil((new Date(phaseEndsAt).getTime() - nowMs) / 1000))
+}
+
+// Derives the desired mic/camera/visibility for the local player from the
+// authoritative game state. Night: everyone muted; the active night role (or all
+// mafia during the mafia step) gets a camera that only the right people may see.
+function computeVoiceIntent(game: Game | undefined, myId: string | undefined): VoiceIntent {
+  const off: VoiceIntent = { mic: false, cam: false, visibility: 'all' }
+  if (!game || !myId) {
+    return off
+  }
+  const me = game.players.find((player) => player.id === myId)
+  if (!me || me.isAlive === false) {
+    return off
+  }
+
+  const { phase, step, activePlayerId, pendingExileId } = game
+  const myRole = me.role
+
+  if (phase === 'night') {
+    let cam = false
+    if (step === 'night_mistress') cam = myRole === 'mistress'
+    else if (step === 'night_doctor') cam = myRole === 'doctor'
+    else if (step === 'night_commissioner') cam = myRole === 'commissioner'
+    else if (step === 'night_mafia') cam = myRole === 'mafia'
+    // Solo night roles: nobody may see. Mafia step: only fellow mafia may see
+    // (so they can gesture). The mistress is excluded even though she is mafia-side.
+    let visibility: VoiceVisibility = 'none'
+    if (cam && step === 'night_mafia') {
+      visibility = game.players.filter((player) => player.role === 'mafia' && player.id !== myId).map((player) => player.id)
+    }
+    return { mic: false, cam, visibility }
+  }
+  if (step === 'day_speech') {
+    return { mic: activePlayerId === myId, cam: true, visibility: 'all' }
+  }
+  if (step === 'day_discussion') {
+    return { mic: true, cam: true, visibility: 'all' }
+  }
+  if (step === 'voting') {
+    return { mic: false, cam: true, visibility: 'all' }
+  }
+  if (step === 'day_last_word') {
+    return { mic: pendingExileId === myId, cam: true, visibility: 'all' }
+  }
+  return off
 }
 
 // Attaches a LiveKit video track to a <video> element rendered on a player tile.
@@ -427,7 +479,7 @@ function GameRoom() {
   const [actionFeedback, setActionFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [phaseFeedback, setPhaseFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [isAdvancingPhase, setIsAdvancingPhase] = useState(false)
-  const { media: voiceMedia, micOn, camOn, toggleMic, toggleCam } = useVoice()
+  const { media: voiceMedia, micOn, camOn, toggleMic, toggleCam, connected: voiceConnected, applyVoiceIntent } = useVoice()
 
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const game = useMemo(() => (id ? getGameByRoomId(id) : undefined), [getGameByRoomId, id])
@@ -483,7 +535,9 @@ function GameRoom() {
   const stepDisplayLabel =
     step === 'day_speech' && game?.activePlayerNickname
       ? `Особиста промова ${game.activePlayerNickname}`
-      : stepDetails.label
+      : step === 'day_last_word' && game?.activePlayerNickname
+        ? `Останнє слово ${game.activePlayerNickname}`
+        : stepDetails.label
   const currentTurn = stepDisplayLabel
   const confirmLabel =
     step === 'voting'
@@ -546,6 +600,17 @@ function GameRoom() {
 
     return () => window.clearInterval(timer)
   }, [])
+
+  // Drive mic/camera/visibility from the game phase, step and role.
+  const voiceIntent = useMemo(() => computeVoiceIntent(game, user?.id), [game, user?.id])
+  const voiceIntentKey = JSON.stringify(voiceIntent)
+  useEffect(() => {
+    if (voiceConnected) {
+      applyVoiceIntent(voiceIntent)
+    }
+    // voiceIntent is captured via voiceIntentKey to avoid re-applying on every game tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceConnected, applyVoiceIntent, voiceIntentKey])
 
   if (!room) {
     if (isLoading) {
