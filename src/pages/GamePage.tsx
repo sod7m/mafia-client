@@ -382,6 +382,11 @@ function computeAudioPolicy(game: Game | undefined, myId: string | undefined): G
 
   const { phase, step, activePlayerId, pendingExileId } = game
 
+  // Final: the game is over — everyone, including the dead, may talk and be seen.
+  if (phase === 'final') {
+    return { allowMic: true, visibility: 'all' }
+  }
+
   // Camera visibility: at night cameras are private (only you see your own),
   // except mafia see each other's cameras (to gesture). Day: everyone sees all.
   let visibility: VoiceVisibility = 'all'
@@ -392,7 +397,7 @@ function computeAudioPolicy(game: Game | undefined, myId: string | undefined): G
         : 'none'
   }
 
-  // Dead players never get the mic.
+  // Dead players never get the mic (until the final discussion above).
   if (me.isAlive === false) {
     return { allowMic: false, visibility }
   }
@@ -403,9 +408,21 @@ function computeAudioPolicy(game: Game | undefined, myId: string | undefined): G
   else if (step === 'day_discussion') allowMic = true
   else if (step === 'voting') allowMic = false
   else if (step === 'day_last_word') allowMic = pendingExileId === myId
-  else if (phase === 'final') allowMic = true
 
   return { allowMic, visibility }
+}
+
+// Whether the local viewer (role myRole) is allowed to SEE a given player's
+// camera right now. Mirrors the publisher-side visibility, but enforced on the
+// render side too so a leaked night camera never shows (avatar shown instead).
+function canSeeCamera(game: Game | undefined, myId: string | undefined, targetId: string): boolean {
+  if (!game) return false
+  if (targetId === myId) return true // always see your own camera
+  if (game.phase !== 'night') return true // day/voting/last-word/final: everyone visible
+  const me = game.players.find((player) => player.id === myId)
+  const target = game.players.find((player) => player.id === targetId)
+  // At night only mafia see other mafia's cameras.
+  return me?.role === 'mafia' && target?.role === 'mafia'
 }
 
 // Attaches a LiveKit video track to a <video> element rendered on a player tile.
@@ -492,6 +509,7 @@ function GameRoom() {
     [game, room?.players],
   )
   const visiblePlayers = useMemo(() => getVisiblePlayers(serverPlayers), [serverPlayers])
+  const aliveCount = game ? game.players.filter((player) => player.isAlive).length : visiblePlayers.length
   const currentPlayer = visiblePlayers.find((player) => player.id === user?.id)
   const gamePlayersById = useMemo(
     () => new Map((game?.players ?? []).map((player) => [player.id, player])),
@@ -546,6 +564,22 @@ function GameRoom() {
           ? 'Підтвердити лікування'
           : 'Підтвердити перевірку'
   const recentEvents = useMemo(() => (game?.events ?? []).slice(-4).reverse(), [game?.events])
+  // Live tally of who is currently voting for whom (Among Us style). Re-voting
+  // moves a voter to the new target because the server keeps one vote per actor.
+  const votersByTarget = useMemo(() => {
+    const map = new Map<string, { id: string; nickname: string }[]>()
+    if (!game || step !== 'voting') {
+      return map
+    }
+    for (const action of game.actions) {
+      if (action.type === 'vote' && action.phase === 'voting' && action.round === game.round) {
+        const voters = map.get(action.targetId) ?? []
+        voters.push({ id: action.actorId, nickname: action.actorNickname })
+        map.set(action.targetId, voters)
+      }
+    }
+    return map
+  }, [game, step])
   const secondsLeft = phase === 'final' ? 0 : getSecondsLeft(game?.phaseEndsAt, nowMs)
   const overlayText = phase === 'final' ? 'Фінал' : stepDisplayLabel
 
@@ -791,9 +825,9 @@ function GameRoom() {
             {stepDisplayLabel}
           </span>
           <span>{formatTimer(secondsLeft)}</span>
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2" title="Живі / всього гравців">
             <Users className="h-4 w-4" />
-            {visiblePlayers.length}/{room.maxPlayers}
+            {aliveCount}/{visiblePlayers.length}
           </span>
         </div>
 
@@ -818,6 +852,7 @@ function GameRoom() {
                 const pm = voiceMedia.get(player.id)
                 const micActive = !!pm?.micOn
                 const isSpeaking = !!pm?.isSpeaking
+                const showVideo = !!pm?.videoTrack && canSeeCamera(game, user?.id, player.id)
                 const isSelectable =
                   canSelectTarget &&
                   !!playerState &&
@@ -840,13 +875,13 @@ function GameRoom() {
                       getSelectedClasses(isSelected, selectionTone),
                     )}
                   >
-                    {pm?.videoTrack && <TrackVideo track={pm.videoTrack} />}
+                    {showVideo && pm?.videoTrack && <TrackVideo track={pm.videoTrack} />}
 
                     <span className="absolute left-2 top-2 z-10 inline-flex h-6 min-w-6 items-center justify-center rounded bg-black/55 px-1.5 text-xs font-black text-neutral-100">
                       {index + 1}
                     </span>
 
-                    {!pm?.videoTrack && (
+                    {!showVideo && (
                       <span className={cx('place-self-center inline-flex items-center justify-center rounded-full font-black', avatarSizeClasses, avatarToneClasses[index % avatarToneClasses.length])}>
                         {getInitials(player.nickname)}
                       </span>
@@ -863,6 +898,20 @@ function GameRoom() {
                     <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 text-[0.68rem] font-bold text-neutral-300">
                       {!micActive && <MicOff className="h-3.5 w-3.5" />}
                     </span>
+
+                    {step === 'voting' && (votersByTarget.get(player.id)?.length ?? 0) > 0 && (
+                      <span className="absolute bottom-8 left-2 right-2 z-10 flex flex-wrap items-center gap-1">
+                        {votersByTarget.get(player.id)!.map((voter) => (
+                          <span
+                            key={voter.id}
+                            title={`${voter.nickname} голосує`}
+                            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-black/75 px-1 text-[0.55rem] font-black text-white ring-1 ring-white/60"
+                          >
+                            {getInitials(voter.nickname)}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </button>
                 )
               })}

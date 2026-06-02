@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Skull, Trophy } from 'lucide-react'
+import { Mic, MicOff, Skull, Trophy } from 'lucide-react'
+import { useVoice } from '../context/VoiceContext.tsx'
 import type { Game, GameRole } from '../types/game.ts'
 
 interface Props {
@@ -46,6 +47,7 @@ function initials(nickname: string) {
 export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
   const [countdown, setCountdown] = useState(AUTO_REDIRECT_SECONDS)
   const hasLeft = useRef(false)
+  const { micWanted, toggleMic } = useVoice()
 
   const safeLeave = useCallback(() => {
     if (hasLeft.current) return
@@ -154,9 +156,24 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
             Повернення до лобі через{' '}
             <span className="font-bold tabular-nums text-neutral-300">{countdown}с</span>
           </span>
-          <button type="button" onClick={safeLeave} className="btn-base btn-primary px-6 py-2.5 text-sm">
-            До лобі
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleMic}
+              title={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+              aria-label={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+              className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border transition ${
+                micWanted
+                  ? 'border-neutral-700 bg-white/10 hover:bg-white/15'
+                  : 'border-red-500/70 bg-red-500/15 text-red-200'
+              }`}
+            >
+              {micWanted ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            </button>
+            <button type="button" onClick={safeLeave} className="btn-base btn-primary px-6 py-2.5 text-sm">
+              До лобі
+            </button>
+          </div>
         </div>
       </div>
     </div>
