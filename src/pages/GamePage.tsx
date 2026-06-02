@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Track } from 'livekit-client'
 import {
   Camera,
   CameraOff,
@@ -17,6 +18,7 @@ import {
   Vote,
 } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
+import { VoiceProvider, useVoice } from '../context/VoiceContext.tsx'
 import { getServerClockOffset } from '../lib/api.ts'
 import { GameOverScreen } from '../components/GameOverScreen.tsx'
 import { MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
@@ -358,7 +360,53 @@ function getSecondsLeft(phaseEndsAt: string | undefined, nowMs: number) {
   return Math.max(0, Math.ceil((new Date(phaseEndsAt).getTime() - nowMs) / 1000))
 }
 
+// Attaches a LiveKit video track to a <video> element rendered on a player tile.
+function TrackVideo({ track }: { track: Track }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  useEffect(() => {
+    const element = ref.current
+    if (!element) {
+      return
+    }
+    track.attach(element)
+    return () => {
+      track.detach(element)
+    }
+  }, [track])
+  return <video ref={ref} autoPlay playsInline muted className="absolute inset-0 h-full w-full object-cover" />
+}
+
+// Outer wrapper: fetches the LiveKit token for the active game and provides the
+// voice/video context to the game room. Connection only happens in-progress.
 export function GamePage() {
+  const { id } = useParams<{ id: string }>()
+  const { getRoomById, getVoiceToken } = useGame()
+  const voiceEnabled = (id ? getRoomById(id) : undefined)?.status === 'in_progress'
+  const [voice, setVoice] = useState<{ token: string; url: string } | null>(null)
+
+  useEffect(() => {
+    if (!id || !voiceEnabled) {
+      return
+    }
+    let cancelled = false
+    void getVoiceToken(id).then((result) => {
+      if (!cancelled) {
+        setVoice(result)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [id, voiceEnabled, getVoiceToken])
+
+  return (
+    <VoiceProvider url={voice?.url ?? null} token={voice?.token ?? null} enabled={!!voiceEnabled && !!voice}>
+      <GameRoom />
+    </VoiceProvider>
+  )
+}
+
+function GameRoom() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const {
@@ -379,8 +427,7 @@ export function GamePage() {
   const [actionFeedback, setActionFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [phaseFeedback, setPhaseFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [isAdvancingPhase, setIsAdvancingPhase] = useState(false)
-  const [micEnabled, setMicEnabled] = useState(true)
-  const [cameraEnabled, setCameraEnabled] = useState(true)
+  const { media: voiceMedia, micOn, camOn, toggleMic, toggleCam } = useVoice()
 
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const game = useMemo(() => (id ? getGameByRoomId(id) : undefined), [getGameByRoomId, id])
@@ -706,8 +753,9 @@ export function GamePage() {
                 const isAlive = playerState?.isAlive ?? true
                 const isSelected = selectedTargetId === player.id
                 const isSelf = player.id === user?.id
-                const isMuted = index % 5 === 2
-                const isCameraOff = index % 4 === 1
+                const pm = voiceMedia.get(player.id)
+                const micActive = !!pm?.micOn
+                const isSpeaking = !!pm?.isSpeaking
                 const isSelectable =
                   canSelectTarget &&
                   !!playerState &&
@@ -724,20 +772,25 @@ export function GamePage() {
                       tileToneClasses[index % tileToneClasses.length],
                       theme.hover,
                       isSelf && 'border-yellow-400/70',
+                      isSpeaking && 'border-emerald-400 shadow-[0_0_0_2px_rgba(52,211,153,0.75)]',
                       !isAlive && 'grayscale opacity-45',
                       !isSelectable && 'cursor-default hover:border-slate-700/80 hover:brightness-100',
                       getSelectedClasses(isSelected, selectionTone),
                     )}
                   >
-                    <span className="absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center rounded bg-black/55 px-1.5 text-xs font-black text-neutral-100">
+                    {pm?.videoTrack && <TrackVideo track={pm.videoTrack} />}
+
+                    <span className="absolute left-2 top-2 z-10 inline-flex h-6 min-w-6 items-center justify-center rounded bg-black/55 px-1.5 text-xs font-black text-neutral-100">
                       {index + 1}
                     </span>
 
-                    <span className={cx('place-self-center inline-flex items-center justify-center rounded-full font-black', avatarSizeClasses, avatarToneClasses[index % avatarToneClasses.length])}>
-                      {getInitials(player.nickname)}
-                    </span>
+                    {!pm?.videoTrack && (
+                      <span className={cx('place-self-center inline-flex items-center justify-center rounded-full font-black', avatarSizeClasses, avatarToneClasses[index % avatarToneClasses.length])}>
+                        {getInitials(player.nickname)}
+                      </span>
+                    )}
 
-                    <span className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2 text-xs font-extrabold">
+                    <span className="absolute bottom-2 left-2 right-2 z-10 flex items-center justify-between gap-2 text-xs font-extrabold drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
                       <span className="truncate">{player.nickname}</span>
                       <span className="flex shrink-0 items-center gap-1">
                         {!isAlive && <span className="rounded-full bg-neutral-700 px-1.5 py-0.5 text-[0.62rem]">Вибув</span>}
@@ -745,9 +798,8 @@ export function GamePage() {
                       </span>
                     </span>
 
-                    <span className="absolute right-2 top-2 inline-flex items-center gap-1 text-[0.68rem] font-bold text-neutral-400">
-                      {isMuted && <MicOff className="h-3.5 w-3.5" />}
-                      {isCameraOff && <CameraOff className="h-3.5 w-3.5" />}
+                    <span className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 text-[0.68rem] font-bold text-neutral-300">
+                      {!micActive && <MicOff className="h-3.5 w-3.5" />}
                     </span>
                   </button>
                 )
@@ -833,27 +885,27 @@ export function GamePage() {
         <div className="inline-flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setMicEnabled((current) => !current)}
+            onClick={toggleMic}
             className={cx(
               'inline-flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-700 bg-white/10 transition hover:border-red-500/80 hover:bg-red-500/15',
-              !micEnabled && 'border-red-500/80 bg-red-500/15 text-red-200',
+              !micOn && 'border-red-500/80 bg-red-500/15 text-red-200',
             )}
-            title={micEnabled ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
-            aria-label={micEnabled ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+            title={micOn ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+            aria-label={micOn ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
           >
-            {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
           </button>
           <button
             type="button"
-            onClick={() => setCameraEnabled((current) => !current)}
+            onClick={toggleCam}
             className={cx(
               'inline-flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-700 bg-white/10 transition hover:border-red-500/80 hover:bg-red-500/15',
-              !cameraEnabled && 'border-red-500/80 bg-red-500/15 text-red-200',
+              !camOn && 'border-red-500/80 bg-red-500/15 text-red-200',
             )}
-            title={cameraEnabled ? 'Вимкнути камеру' : 'Увімкнути камеру'}
-            aria-label={cameraEnabled ? 'Вимкнути камеру' : 'Увімкнути камеру'}
+            title={camOn ? 'Вимкнути камеру' : 'Увімкнути камеру'}
+            aria-label={camOn ? 'Вимкнути камеру' : 'Увімкнути камеру'}
           >
-            {cameraEnabled ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
+            {camOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
           </button>
           <button
             type="button"

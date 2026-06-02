@@ -36,6 +36,7 @@ interface GameContextValue {
   startRoom: (roomId: string) => Promise<ActionResult>
   getRoomById: (roomId: string) => Room | undefined
   getGameByRoomId: (roomId: string) => Game | undefined
+  getVoiceToken: (roomId: string) => Promise<{ token: string; url: string } | null>
 }
 
 const GameContext = createContext<GameContextValue | null>(null)
@@ -606,6 +607,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [requireToken],
   )
 
+  const getVoiceToken = useCallback(
+    async (roomId: string): Promise<{ token: string; url: string } | null> => {
+      const currentToken = requireToken()
+      if (!currentToken) {
+        return null
+      }
+      try {
+        return await api.voiceToken(currentToken, roomId)
+      } catch {
+        return null
+      }
+    },
+    [requireToken],
+  )
+
   const getRoomById = useCallback(
     (roomId: string) => rooms.find((room) => room.id === roomId),
     [rooms],
@@ -645,9 +661,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
       submitGameAction,
       getRoomById,
       getGameByRoomId,
+      getVoiceToken,
     }),
     [
       apiError,
+      getVoiceToken,
       advanceGamePhase,
       availableRooms,
       createRoom,

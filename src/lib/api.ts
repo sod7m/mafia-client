@@ -53,6 +53,11 @@ interface GameResponse {
   game: Game
 }
 
+interface VoiceTokenResponse {
+  token: string
+  url: string
+}
+
 interface ApiErrorResponse {
   error?: string
 }
@@ -192,6 +197,14 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ type, targetId }),
       },
+      token,
+    )
+  },
+
+  voiceToken(token: string, roomId: string) {
+    return request<VoiceTokenResponse>(
+      `/api/games/${encodeURIComponent(roomId)}/voice-token`,
+      { method: 'POST' },
       token,
     )
   },
