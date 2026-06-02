@@ -18,7 +18,7 @@ import {
   Vote,
 } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
-import { VoiceProvider, useVoice, type VoiceIntent, type VoiceVisibility } from '../context/VoiceContext.tsx'
+import { VoiceProvider, useVoice, type GameAudioPolicy, type VoiceVisibility } from '../context/VoiceContext.tsx'
 import { getServerClockOffset } from '../lib/api.ts'
 import { GameOverScreen } from '../components/GameOverScreen.tsx'
 import { MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
@@ -367,49 +367,45 @@ function getSecondsLeft(phaseEndsAt: string | undefined, nowMs: number) {
   return Math.max(0, Math.ceil((new Date(phaseEndsAt).getTime() - nowMs) / 1000))
 }
 
-// Derives the desired mic/camera/visibility for the local player from the
-// authoritative game state. Night: everyone muted; the active night role (or all
-// mafia during the mafia step) gets a camera that only the right people may see.
-function computeVoiceIntent(game: Game | undefined, myId: string | undefined): VoiceIntent {
-  const off: VoiceIntent = { mic: false, cam: false, visibility: 'all' }
+// Derives the game's audio policy for the local player: whether the game lets
+// them talk right now, and who may see their camera. The camera ON/OFF itself is
+// the user's own choice — the game only hides it.
+function computeAudioPolicy(game: Game | undefined, myId: string | undefined): GameAudioPolicy {
+  const dayDefault: GameAudioPolicy = { allowMic: false, visibility: 'all' }
   if (!game || !myId) {
-    return off
+    return dayDefault
   }
   const me = game.players.find((player) => player.id === myId)
-  if (!me || me.isAlive === false) {
-    return off
+  if (!me) {
+    return dayDefault
   }
 
   const { phase, step, activePlayerId, pendingExileId } = game
-  const myRole = me.role
 
+  // Camera visibility: at night cameras are private (only you see your own),
+  // except mafia see each other's cameras (to gesture). Day: everyone sees all.
+  let visibility: VoiceVisibility = 'all'
   if (phase === 'night') {
-    let cam = false
-    if (step === 'night_mistress') cam = myRole === 'mistress'
-    else if (step === 'night_doctor') cam = myRole === 'doctor'
-    else if (step === 'night_commissioner') cam = myRole === 'commissioner'
-    else if (step === 'night_mafia') cam = myRole === 'mafia'
-    // Solo night roles: nobody may see. Mafia step: only fellow mafia may see
-    // (so they can gesture). The mistress is excluded even though she is mafia-side.
-    let visibility: VoiceVisibility = 'none'
-    if (cam && step === 'night_mafia') {
-      visibility = game.players.filter((player) => player.role === 'mafia' && player.id !== myId).map((player) => player.id)
-    }
-    return { mic: false, cam, visibility }
+    visibility =
+      me.role === 'mafia'
+        ? game.players.filter((player) => player.role === 'mafia' && player.id !== myId).map((player) => player.id)
+        : 'none'
   }
-  if (step === 'day_speech') {
-    return { mic: activePlayerId === myId, cam: true, visibility: 'all' }
+
+  // Dead players never get the mic.
+  if (me.isAlive === false) {
+    return { allowMic: false, visibility }
   }
-  if (step === 'day_discussion') {
-    return { mic: true, cam: true, visibility: 'all' }
-  }
-  if (step === 'voting') {
-    return { mic: false, cam: true, visibility: 'all' }
-  }
-  if (step === 'day_last_word') {
-    return { mic: pendingExileId === myId, cam: true, visibility: 'all' }
-  }
-  return off
+
+  let allowMic = false
+  if (phase === 'night') allowMic = false
+  else if (step === 'day_speech') allowMic = activePlayerId === myId
+  else if (step === 'day_discussion') allowMic = true
+  else if (step === 'voting') allowMic = false
+  else if (step === 'day_last_word') allowMic = pendingExileId === myId
+  else if (phase === 'final') allowMic = true
+
+  return { allowMic, visibility }
 }
 
 // Attaches a LiveKit video track to a <video> element rendered on a player tile.
@@ -479,7 +475,7 @@ function GameRoom() {
   const [actionFeedback, setActionFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [phaseFeedback, setPhaseFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [isAdvancingPhase, setIsAdvancingPhase] = useState(false)
-  const { media: voiceMedia, micOn, camOn, toggleMic, toggleCam, connected: voiceConnected, applyVoiceIntent } = useVoice()
+  const { media: voiceMedia, micWanted, camWanted, toggleMic, toggleCam, connected: voiceConnected, setGameAudioPolicy } = useVoice()
 
   const room = useMemo(() => (id ? getRoomById(id) : undefined), [getRoomById, id])
   const game = useMemo(() => (id ? getGameByRoomId(id) : undefined), [getGameByRoomId, id])
@@ -601,16 +597,17 @@ function GameRoom() {
     return () => window.clearInterval(timer)
   }, [])
 
-  // Drive mic/camera/visibility from the game phase, step and role.
-  const voiceIntent = useMemo(() => computeVoiceIntent(game, user?.id), [game, user?.id])
-  const voiceIntentKey = JSON.stringify(voiceIntent)
+  // Feed the game's audio policy (talk permission + camera visibility) to the
+  // voice layer. The user's own mic/camera buttons stay independent.
+  const audioPolicy = useMemo(() => computeAudioPolicy(game, user?.id), [game, user?.id])
+  const audioPolicyKey = JSON.stringify(audioPolicy)
   useEffect(() => {
     if (voiceConnected) {
-      applyVoiceIntent(voiceIntent)
+      setGameAudioPolicy(audioPolicy)
     }
-    // voiceIntent is captured via voiceIntentKey to avoid re-applying on every game tick
+    // audioPolicy is captured via audioPolicyKey to avoid re-applying every game tick
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voiceConnected, applyVoiceIntent, voiceIntentKey])
+  }, [voiceConnected, setGameAudioPolicy, audioPolicyKey])
 
   if (!room) {
     if (isLoading) {
@@ -953,24 +950,24 @@ function GameRoom() {
             onClick={toggleMic}
             className={cx(
               'inline-flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-700 bg-white/10 transition hover:border-red-500/80 hover:bg-red-500/15',
-              !micOn && 'border-red-500/80 bg-red-500/15 text-red-200',
+              !micWanted && 'border-red-500/80 bg-red-500/15 text-red-200',
             )}
-            title={micOn ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
-            aria-label={micOn ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+            title={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+            aria-label={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
           >
-            {micOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+            {micWanted ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
           </button>
           <button
             type="button"
             onClick={toggleCam}
             className={cx(
               'inline-flex h-11 w-11 items-center justify-center rounded-lg border border-neutral-700 bg-white/10 transition hover:border-red-500/80 hover:bg-red-500/15',
-              !camOn && 'border-red-500/80 bg-red-500/15 text-red-200',
+              !camWanted && 'border-red-500/80 bg-red-500/15 text-red-200',
             )}
-            title={camOn ? 'Вимкнути камеру' : 'Увімкнути камеру'}
-            aria-label={camOn ? 'Вимкнути камеру' : 'Увімкнути камеру'}
+            title={camWanted ? 'Вимкнути камеру' : 'Увімкнути камеру'}
+            aria-label={camWanted ? 'Вимкнути камеру' : 'Увімкнути камеру'}
           >
-            {camOn ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
+            {camWanted ? <Camera className="h-5 w-5" /> : <CameraOff className="h-5 w-5" />}
           </button>
           <button
             type="button"
@@ -1009,3 +1006,4 @@ function GameRoom() {
     </div>
   )
 }
+

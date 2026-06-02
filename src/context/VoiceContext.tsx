@@ -14,31 +14,31 @@ export interface ParticipantMedia {
 // list of participant identities (used to keep night cameras secret).
 export type VoiceVisibility = 'all' | 'none' | string[]
 
-export interface VoiceIntent {
-  mic: boolean
-  cam: boolean
-  visibility: VoiceVisibility
+// The game's authoritative policy for the local player at this moment.
+export interface GameAudioPolicy {
+  allowMic: boolean // is the player allowed to talk right now (by phase/role)
+  visibility: VoiceVisibility // who may see the player's camera
 }
 
 interface VoiceContextValue {
   connected: boolean
   media: Map<string, ParticipantMedia>
-  micOn: boolean
-  camOn: boolean
+  micWanted: boolean // the user's own mic preference (button), not the effective state
+  camWanted: boolean // the user's own camera preference (button)
   toggleMic: () => void
   toggleCam: () => void
-  applyVoiceIntent: (intent: VoiceIntent) => void
+  setGameAudioPolicy: (policy: GameAudioPolicy) => void
   error: string | null
 }
 
 const VoiceContext = createContext<VoiceContextValue>({
   connected: false,
   media: new Map(),
-  micOn: false,
-  camOn: false,
+  micWanted: true,
+  camWanted: false,
   toggleMic: () => {},
   toggleCam: () => {},
-  applyVoiceIntent: () => {},
+  setGameAudioPolicy: () => {},
   error: null,
 })
 
@@ -77,9 +77,17 @@ export function VoiceProvider({ url, token, enabled, children }: VoiceProviderPr
   const audioContainerRef = useRef<HTMLDivElement | null>(null)
   const [connected, setConnected] = useState(false)
   const [media, setMedia] = useState<Map<string, ParticipantMedia>>(new Map())
-  const [micOn, setMicOn] = useState(false)
-  const [camOn, setCamOn] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // The two independent inputs for the microphone:
+  //  - userWantsMic: the player's own choice (button). A manual mute always wins.
+  //  - allowMic: the game's permission for this phase/role.
+  // The published microphone is the AND of both, recomputed reactively, so the
+  // button can never open a window to talk when the game forbids it.
+  const [userWantsMic, setUserWantsMic] = useState(true)
+  const [userWantsCam, setUserWantsCam] = useState(false)
+  const [allowMic, setAllowMic] = useState(false)
+  const [visibility, setVisibility] = useState<VoiceVisibility>('all')
 
   useEffect(() => {
     if (!enabled || !url || !token) {
@@ -91,16 +99,12 @@ export function VoiceProvider({ url, token, enabled, children }: VoiceProviderPr
     let cancelled = false
 
     const rebuild = () => {
-      if (cancelled) return
-      setMedia(buildMedia(room))
-      setMicOn(room.localParticipant.isMicrophoneEnabled)
-      setCamOn(room.localParticipant.isCameraEnabled)
+      if (!cancelled) setMedia(buildMedia(room))
     }
 
     const attachAudio = (track: RemoteTrack) => {
       if (track.kind === Track.Kind.Audio && audioContainerRef.current) {
-        const element = track.attach()
-        audioContainerRef.current.appendChild(element)
+        audioContainerRef.current.appendChild(track.attach())
       }
     }
 
@@ -142,53 +146,55 @@ export function VoiceProvider({ url, token, enabled, children }: VoiceProviderPr
       void room.disconnect()
       setConnected(false)
       setMedia(new Map())
-      setMicOn(false)
-      setCamOn(false)
     }
   }, [enabled, url, token])
 
-  const toggleMic = () => {
+  // Effective microphone = game permission AND user's wish. Recomputed whenever
+  // either changes — there is no imperative path that bypasses this.
+  useEffect(() => {
     const localParticipant = roomRef.current?.localParticipant
-    if (!localParticipant) return
-    void roomRef.current?.startAudio()
-    localParticipant
-      .setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled)
-      .catch(() => setError('Немає доступу до мікрофона'))
-  }
+    if (!connected || !localParticipant) return
+    void localParticipant.setMicrophoneEnabled(allowMic && userWantsMic).catch(() => {})
+  }, [connected, allowMic, userWantsMic])
 
-  const toggleCam = () => {
+  // Camera is controlled by the user only; the game never toggles it.
+  useEffect(() => {
     const localParticipant = roomRef.current?.localParticipant
-    if (!localParticipant) return
-    localParticipant
-      .setCameraEnabled(!localParticipant.isCameraEnabled)
-      .catch(() => setError('Немає доступу до камери'))
-  }
+    if (!connected || !localParticipant) return
+    void localParticipant.setCameraEnabled(userWantsCam).catch(() => setError('Немає доступу до камери'))
+  }, [connected, userWantsCam])
 
-  // Drive mic/camera and track-subscription visibility from the game state.
-  const applyVoiceIntent = useCallback((intent: VoiceIntent) => {
-    const room = roomRef.current
-    if (!room) return
-    const localParticipant = room.localParticipant
-
-    // Set who may subscribe to my tracks BEFORE (re)publishing the camera, so a
-    // secret night camera is never briefly visible to everyone.
-    if (intent.visibility === 'all') {
+  // Who may subscribe to my tracks. Applies to current and future tracks, so a
+  // camera turned on during the night is never visible to unauthorized players.
+  const visibilityKey = typeof visibility === 'string' ? visibility : visibility.join(',')
+  useEffect(() => {
+    const localParticipant = roomRef.current?.localParticipant
+    if (!connected || !localParticipant) return
+    if (visibility === 'all') {
       localParticipant.setTrackSubscriptionPermissions(true, [])
-    } else if (intent.visibility === 'none') {
+    } else if (visibility === 'none') {
       localParticipant.setTrackSubscriptionPermissions(false, [])
     } else {
       localParticipant.setTrackSubscriptionPermissions(
         false,
-        intent.visibility.map((identity) => ({ participantIdentity: identity, allowAll: true })),
+        visibility.map((identity) => ({ participantIdentity: identity, allowAll: true })),
       )
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, visibilityKey])
 
-    void localParticipant.setMicrophoneEnabled(intent.mic).catch(() => {})
-    void localParticipant.setCameraEnabled(intent.cam).catch(() => setError('Немає доступу до камери'))
+  const toggleMic = () => setUserWantsMic((current) => !current)
+  const toggleCam = () => setUserWantsCam((current) => !current)
+
+  const setGameAudioPolicy = useCallback((policy: GameAudioPolicy) => {
+    setAllowMic(policy.allowMic)
+    setVisibility(policy.visibility)
   }, [])
 
   return (
-    <VoiceContext.Provider value={{ connected, media, micOn, camOn, toggleMic, toggleCam, applyVoiceIntent, error }}>
+    <VoiceContext.Provider
+      value={{ connected, media, micWanted: userWantsMic, camWanted: userWantsCam, toggleMic, toggleCam, setGameAudioPolicy, error }}
+    >
       {children}
       <div ref={audioContainerRef} className="hidden" aria-hidden />
     </VoiceContext.Provider>
