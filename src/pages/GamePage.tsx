@@ -991,9 +991,9 @@ function GameRoom() {
       {game && (
         <div
           key={`${phase}:${step}:${phaseNumber}:${game.speechIndex ?? 0}`}
-          className="pointer-events-none fixed inset-0 z-[80] grid animate-[phaseOverlay_1.2s_ease_forwards] place-items-center bg-black/80 text-6xl font-black max-sm:text-5xl"
+          className="pointer-events-none fixed inset-0 z-[80] flex animate-[phaseOverlay_1.2s_ease_forwards] items-center justify-center overflow-hidden bg-black/80 px-5 text-center text-6xl font-black leading-tight max-lg:text-5xl max-sm:text-4xl"
         >
-          {overlayText}
+          <span className="block max-w-[min(92vw,54rem)] break-words">{overlayText}</span>
         </div>
       )}
 
@@ -1239,6 +1239,16 @@ function GameRoom() {
                         : `${actionVisual.selected}: ${selectedTarget.nickname}`
                       : actionVisual.waiting}
                   </strong>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2">
+                <span className="min-w-0">
+                  <span className="block text-[0.62rem] font-extrabold uppercase text-neutral-500">Ваша роль</span>
+                  <strong className="block truncate text-sm">{currentRole?.label ?? 'Спостерігач'}</strong>
+                </span>
+                <span className="shrink-0 rounded-full bg-yellow-400/15 px-2 py-1 text-[0.68rem] font-black text-yellow-300">
+                  {currentRole?.team ?? 'Поза столом'}
                 </span>
               </div>
 
