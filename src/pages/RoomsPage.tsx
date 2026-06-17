@@ -223,7 +223,7 @@ export function RoomsPage() {
                         className="btn-base btn-primary btn-room w-full px-4 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
                       >
                         <Play className="h-4 w-4" />
-                        Демо старт
+                        Старт
                       </button>
                     ) : (
                       <p className="rounded-lg bg-white/5 px-3 py-2 text-sm font-semibold text-[hsl(var(--muted-foreground))]">

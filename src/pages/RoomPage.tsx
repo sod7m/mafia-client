@@ -191,7 +191,7 @@ export function RoomPage() {
                   className="btn-base btn-primary btn-room px-5 py-3 text-base disabled:pointer-events-none disabled:opacity-45"
                 >
                   <Play className="h-4 w-4" />
-                  Демо старт
+                  Старт
                 </button>
               ) : room.status !== 'in_progress' ? (
                 <span className="status-pill status-waiting px-4 py-3">Очікуємо власника</span>
@@ -248,7 +248,7 @@ export function RoomPage() {
           <aside className="surface-card rounded-2xl p-5">
             <h3 className="mb-3 text-xl font-bold">Стан кімнати</h3>
             <ul className="space-y-2 text-sm text-[hsl(var(--muted-foreground))]">
-              <li>• Кімната доступна, доки власник не натисне «Демо старт».</li>
+              <li>• Кімната доступна, доки власник не натисне «Старт».</li>
               <li>• Для старту потрібно мінімум {MIN_PLAYERS_IN_ROOM} гравців.</li>
               <li>• Після старту вона зникає зі списку загальних кімнат.</li>
               <li>• Старт і керування фазами доступні тільки власнику кімнати.</li>

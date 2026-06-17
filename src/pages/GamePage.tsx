@@ -5,11 +5,16 @@ import {
   Camera,
   CameraOff,
   Check,
+  Crosshair,
+  HeartPulse,
   LogOut,
   Mic,
   MicOff,
   Moon,
+  SearchCheck,
   Settings,
+  ShieldBan,
+  ShieldCheck,
   ShieldQuestion,
   Skull,
   Sun,
@@ -26,11 +31,19 @@ import type { Game, GameActionType, GamePhase, GamePlayer, GameRole, GameSide, G
 
 type RoleKind = 'commissioner' | 'mafia' | 'mistress' | 'doctor' | 'civilian'
 type SelectionTone = 'danger' | 'inspect'
+type ActionFeedbackKind = 'success' | 'error'
 
 interface PlayerRole {
   label: string
   team: 'Мирні' | 'Мафія'
   kind: RoleKind
+}
+
+interface ActionFeedback {
+  kind: ActionFeedbackKind
+  title: string
+  body: string
+  phaseKey: string
 }
 
 const phaseConfig: Record<
@@ -68,7 +81,7 @@ const phaseConfig: Record<
     label: 'Фінал',
     icon: Trophy,
     actionLabel: 'Підсумок',
-    actionHint: 'Партія завершена для демо-перегляду фінального стану.',
+    actionHint: 'Партія завершена. Перегляньте фінальний стан гравців.',
     duration: 0,
   },
 }
@@ -200,6 +213,88 @@ function getPlayerRole(_player: RoomPlayer, index: number, serverRole?: GameRole
   }
 
   return rolePattern[index % rolePattern.length]
+}
+
+function getActionVisual(actionType: GameActionType | null | undefined) {
+  switch (actionType) {
+    case 'mistress_block':
+      return {
+        Icon: ShieldBan,
+        label: 'Блокування',
+        waiting: 'Оберіть гравця, якого потрібно заблокувати цієї ночі.',
+        selected: 'Ціль для блокування',
+      }
+    case 'heal':
+      return {
+        Icon: HeartPulse,
+        label: 'Лікування',
+        waiting: 'Оберіть гравця, якого лікар спробує захистити.',
+        selected: 'Ціль для лікування',
+      }
+    case 'inspect':
+      return {
+        Icon: SearchCheck,
+        label: 'Перевірка',
+        waiting: 'Оберіть гравця, чию сторону має перевірити комісар.',
+        selected: 'Ціль для перевірки',
+      }
+    case 'mafia_kill':
+      return {
+        Icon: Crosshair,
+        label: 'Постріл',
+        waiting: 'Оберіть ціль для нічного пострілу мафії.',
+        selected: 'Ціль для пострілу',
+      }
+    case 'vote':
+      return {
+        Icon: Vote,
+        label: 'Голос',
+        waiting: 'Оберіть гравця, за якого голосуєте на вигнання.',
+        selected: 'Голос проти',
+      }
+    default:
+      return {
+        Icon: ShieldQuestion,
+        label: 'Дія недоступна',
+        waiting: 'На цьому кроці для вас немає доступної дії.',
+        selected: 'Ціль',
+      }
+  }
+}
+
+function getSuccessFeedback(actionType: GameActionType, targetName: string, resultLabel?: string): Omit<ActionFeedback, 'phaseKey'> {
+  switch (actionType) {
+    case 'inspect':
+      return {
+        kind: 'success',
+        title: 'Перевірку завершено',
+        body: `${targetName}: сторона ${resultLabel ?? 'Невідомо'}.`,
+      }
+    case 'heal':
+      return {
+        kind: 'success',
+        title: 'Лікування записано',
+        body: `Лікар спробує захистити ${targetName} цієї ночі.`,
+      }
+    case 'mistress_block':
+      return {
+        kind: 'success',
+        title: 'Блокування записано',
+        body: `${targetName} не зможе виконати нічну дію, якщо має активну роль.`,
+      }
+    case 'mafia_kill':
+      return {
+        kind: 'success',
+        title: 'Вибір мафії записано',
+        body: `Ціль для пострілу: ${targetName}. Постріл спрацює, якщо мафія обрала одну ціль.`,
+      }
+    case 'vote':
+      return {
+        kind: 'success',
+        title: 'Голос прийнято',
+        body: `Ваш голос проти ${targetName} зафіксовано.`,
+      }
+  }
 }
 
 function getVisiblePlayers(players: RoomPlayer[]) {
@@ -489,7 +584,7 @@ function GameRoom() {
   } = useGame()
   const [nowMs, setNowMs] = useState(() => Date.now() + getServerClockOffset())
   const [selectedTargetChoice, setSelectedTargetChoice] = useState<{ playerId: string; phaseKey: string } | null>(null)
-  const [actionFeedback, setActionFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
+  const [actionFeedback, setActionFeedback] = useState<ActionFeedback | null>(null)
   const [phaseFeedback, setPhaseFeedback] = useState<{ text: string; phaseKey: string } | null>(null)
   const [isAdvancingPhase, setIsAdvancingPhase] = useState(false)
   const { media: voiceMedia, micWanted, camWanted, toggleMic, toggleCam, connected: voiceConnected, setGameAudioPolicy } = useVoice()
@@ -502,7 +597,7 @@ function GameRoom() {
   const isIntroRound = phaseNumber <= 1
   const phaseKey = `${phase}:${step}:${phaseNumber}:${game?.speechIndex ?? 0}`
   const selectedTargetId = selectedTargetChoice?.phaseKey === phaseKey ? selectedTargetChoice.playerId : null
-  const currentActionFeedback = actionFeedback?.phaseKey === phaseKey ? actionFeedback.text : ''
+  const currentActionFeedback = actionFeedback?.phaseKey === phaseKey ? actionFeedback : null
   const currentPhaseFeedback = phaseFeedback?.phaseKey === phaseKey ? phaseFeedback.text : ''
   const serverPlayers = useMemo(
     () => (game ? getRoomPlayersFromGame(game.players) : room?.players ?? []),
@@ -538,6 +633,8 @@ function GameRoom() {
   // Перший раунд ознайомчий: ролі лише прокидаються по черзі, нічних ходів
   // і голосування немає — тому дії на цьому раунді недоступні.
   const currentActionType = isIntroRound ? null : getActionType(step, currentRole)
+  const actionVisual = getActionVisual(currentActionType)
+  const ActionIcon = actionVisual.Icon
   const canSelectTarget = !!currentActionType
   const stepHint = isIntroRound
     ? phase === 'night'
@@ -563,7 +660,6 @@ function GameRoom() {
         : currentRole?.kind === 'doctor'
           ? 'Підтвердити лікування'
           : 'Підтвердити перевірку'
-  const recentEvents = useMemo(() => (game?.events ?? []).slice(-4).reverse(), [game?.events])
   // Live tally of who is currently voting for whom (Among Us style). Re-voting
   // moves a voter to the new target because the server keeps one vote per actor.
   const votersByTarget = useMemo(() => {
@@ -695,7 +791,7 @@ function GameRoom() {
             disabled={room.players.length < MIN_PLAYERS_IN_ROOM}
             className="btn-base btn-primary mt-5 px-5 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
           >
-            Демо старт
+            Старт
           </button>
         </div>
       </div>
@@ -780,7 +876,12 @@ function GameRoom() {
 
     const result = await submitGameAction(room.id, currentActionType, selectedTarget.id)
     if (!result.ok) {
-      setActionFeedback({ text: result.error ?? 'Не вдалося виконати дію.', phaseKey })
+      setActionFeedback({
+        kind: 'error',
+        title: 'Дія не виконана',
+        body: result.error ?? 'Не вдалося виконати дію.',
+        phaseKey,
+      })
       return
     }
 
@@ -790,14 +891,20 @@ function GameRoom() {
         .reverse()
         .find((event) => event.type === 'inspect.resolved' && event.targetId === selectedTarget.id)
       const inspectedTarget = result.game?.players.find((player) => player.id === selectedTarget.id)
+      const resultLabel = getInspectLabel(
+        inspectedTarget?.role ?? selectedTargetState?.role,
+        inspectedTarget?.side ?? selectedTargetState?.side,
+      )
       setActionFeedback({
-        text:
-          inspectEvent?.message ??
-          `Результат перевірки: ${selectedTarget.nickname} — ${getInspectLabel(inspectedTarget?.role ?? selectedTargetState?.role, inspectedTarget?.side ?? selectedTargetState?.side)}`,
+        ...getSuccessFeedback(currentActionType, selectedTarget.nickname, resultLabel),
+        body: inspectEvent?.message ?? `${selectedTarget.nickname}: сторона ${resultLabel}.`,
         phaseKey,
       })
     } else {
-      setActionFeedback({ text: `${confirmLabel}: ${selectedTarget.nickname}`, phaseKey })
+      setActionFeedback({
+        ...getSuccessFeedback(currentActionType, selectedTarget.nickname),
+        phaseKey,
+      })
     }
     setSelectedTargetChoice(null)
   }
@@ -849,6 +956,7 @@ function GameRoom() {
                 const isAlive = playerState?.isAlive ?? true
                 const isSelected = selectedTargetId === player.id
                 const isSelf = player.id === user?.id
+                const isMafiaAlly = currentRole?.kind === 'mafia' && !isSelf && playerState?.role === 'mafia'
                 const pm = voiceMedia.get(player.id)
                 const micActive = !!pm?.micOn
                 const isSpeaking = !!pm?.isSpeaking
@@ -869,6 +977,7 @@ function GameRoom() {
                       tileToneClasses[index % tileToneClasses.length],
                       theme.hover,
                       isSelf && 'border-yellow-400/70',
+                      isMafiaAlly && 'border-red-500/90 shadow-[0_0_0_1px_rgba(239,68,68,0.72),0_0_34px_rgba(239,68,68,0.22)]',
                       isSpeaking && 'border-emerald-400 shadow-[0_0_0_2px_rgba(52,211,153,0.75)]',
                       !isAlive && 'grayscale opacity-45',
                       !isSelectable && 'cursor-default hover:border-slate-700/80 hover:brightness-100',
@@ -892,6 +1001,7 @@ function GameRoom() {
                       <span className="flex shrink-0 items-center gap-1">
                         {!isAlive && <span className="rounded-full bg-neutral-700 px-1.5 py-0.5 text-[0.62rem]">Вибув</span>}
                         {isSelf && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[0.62rem]">Ви</span>}
+                        {isMafiaAlly && <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[0.62rem]">Союзник</span>}
                       </span>
                     </span>
 
@@ -939,15 +1049,25 @@ function GameRoom() {
             <h2 className="font-black">{currentTurn}</h2>
             <p className="mt-2 text-sm leading-6 text-neutral-500">{stepHint}</p>
 
-            <div className="my-4 grid gap-1 rounded-lg bg-white/5 p-3">
-              <span className="text-xs font-extrabold uppercase text-neutral-500">{stepDetails.actionLabel}</span>
-              <strong className="text-sm">
-                {selectedTarget
-                  ? selectedTargetState?.isAlive === false
-                    ? `${selectedTarget.nickname} вже вибув`
-                    : selectedTarget.nickname
-                  : 'Ціль не вибрана'}
-              </strong>
+            <div className="my-4 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06]">
+              <div className="flex items-start gap-3 p-3">
+                <span className={cx('inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', canSelectTarget ? 'bg-red-500/15 text-red-200' : 'bg-white/10 text-neutral-400')}>
+                  <ActionIcon className="h-5 w-5" />
+                </span>
+                <span className="grid min-w-0 gap-1">
+                  <span className="text-xs font-extrabold uppercase text-neutral-500">{actionVisual.label}</span>
+                  <strong className="text-sm leading-5">
+                    {selectedTarget
+                      ? selectedTargetState?.isAlive === false
+                        ? `${selectedTarget.nickname} вже вибув`
+                        : selectedTarget.nickname
+                      : actionVisual.waiting}
+                  </strong>
+                  {selectedTarget && selectedTargetState?.isAlive !== false && (
+                    <span className="text-xs font-semibold text-neutral-500">{actionVisual.selected}</span>
+                  )}
+                </span>
+              </div>
             </div>
 
             <button
@@ -961,24 +1081,31 @@ function GameRoom() {
             </button>
 
             {currentActionFeedback && (
-              <p className="mt-3 rounded-lg bg-emerald-500/15 p-3 text-sm font-bold text-emerald-200">
-                {currentActionFeedback}
-              </p>
+              <div
+                className={cx(
+                  'mt-3 rounded-xl border p-3',
+                  currentActionFeedback.kind === 'success'
+                    ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
+                    : 'border-red-400/40 bg-red-500/10 text-red-100',
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <span
+                    className={cx(
+                      'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                      currentActionFeedback.kind === 'success' ? 'bg-emerald-400/15 text-emerald-200' : 'bg-red-400/15 text-red-200',
+                    )}
+                  >
+                    {currentActionFeedback.kind === 'success' ? <ShieldCheck className="h-4 w-4" /> : <ShieldBan className="h-4 w-4" />}
+                  </span>
+                  <span className="grid gap-1">
+                    <strong className="text-sm">{currentActionFeedback.title}</strong>
+                    <span className="text-sm leading-5 text-current/80">{currentActionFeedback.body}</span>
+                  </span>
+                </div>
+              </div>
             )}
           </section>
-
-          {recentEvents.length > 0 && (
-            <section className={cx('rounded-xl border p-4', theme.border, theme.panel)}>
-              <p className="mb-3 text-xs font-extrabold uppercase text-neutral-500">Журнал гри</p>
-              <div className="grid gap-2">
-                {recentEvents.map((event) => (
-                  <p key={event.id} className="rounded-lg bg-white/5 p-3 text-sm leading-5 text-neutral-300">
-                    {event.message}
-                  </p>
-                ))}
-              </div>
-            </section>
-          )}
         </aside>
       </main>
 
@@ -1055,4 +1182,3 @@ function GameRoom() {
     </div>
   )
 }
-
