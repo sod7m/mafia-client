@@ -31,7 +31,7 @@ import type { Game, GameActionType, GamePhase, GamePlayer, GameRole, GameSide, G
 
 type RoleKind = 'commissioner' | 'mafia' | 'mistress' | 'doctor' | 'civilian'
 type SelectionTone = 'danger' | 'inspect'
-type ActionFeedbackKind = 'success' | 'error'
+type ActionFeedbackKind = 'success' | 'error' | 'notice'
 
 interface PlayerRole {
   label: string
@@ -293,6 +293,46 @@ function getSuccessFeedback(actionType: GameActionType, targetName: string, resu
         kind: 'success',
         title: 'Голос прийнято',
         body: `Ваш голос проти ${targetName} зафіксовано.`,
+      }
+  }
+}
+
+function getActionChangeNotice(
+  actionType: GameActionType,
+  previousTargetName: string,
+  nextTargetName: string,
+  confirmLabel: string,
+): Omit<ActionFeedback, 'phaseKey'> {
+  switch (actionType) {
+    case 'inspect':
+      return {
+        kind: 'notice',
+        title: 'Перевірка вже записана',
+        body: `Зараз записано перевірку ${previousTargetName}. Натисніть «${confirmLabel}», щоб змінити ціль на ${nextTargetName}.`,
+      }
+    case 'heal':
+      return {
+        kind: 'notice',
+        title: 'Лікування вже записано',
+        body: `Зараз лікар захищає ${previousTargetName}. Натисніть «${confirmLabel}», щоб змінити ціль на ${nextTargetName}.`,
+      }
+    case 'mistress_block':
+      return {
+        kind: 'notice',
+        title: 'Блокування вже записано',
+        body: `Зараз записано блокування ${previousTargetName}. Натисніть «${confirmLabel}», щоб змінити ціль на ${nextTargetName}.`,
+      }
+    case 'mafia_kill':
+      return {
+        kind: 'notice',
+        title: 'Вибір мафії вже записано',
+        body: `Зараз ціль мафії: ${previousTargetName}. Натисніть «${confirmLabel}», щоб змінити ціль на ${nextTargetName}.`,
+      }
+    case 'vote':
+      return {
+        kind: 'notice',
+        title: 'Голос вже записано',
+        body: `Зараз ваш голос проти ${previousTargetName}. Натисніть «${confirmLabel}», щоб переголосувати за ${nextTargetName}.`,
       }
   }
 }
@@ -660,6 +700,34 @@ function GameRoom() {
         : currentRole?.kind === 'doctor'
           ? 'Підтвердити лікування'
           : 'Підтвердити перевірку'
+  const currentRecordedAction = useMemo(() => {
+    if (!game || !user?.id || !currentActionType) {
+      return null
+    }
+
+    return (
+      game.actions.find(
+        (action) =>
+          action.actorId === user.id &&
+          action.type === currentActionType &&
+          action.phase === phase &&
+          action.round === game.round,
+      ) ?? null
+    )
+  }, [currentActionType, game, phase, user?.id])
+  const pendingActionChangeFeedback =
+    selectedTarget && currentRecordedAction && currentActionType && currentRecordedAction.targetId !== selectedTarget.id
+      ? {
+          ...getActionChangeNotice(
+            currentActionType,
+            currentRecordedAction.targetNickname,
+            selectedTarget.nickname,
+            confirmLabel,
+          ),
+          phaseKey,
+        }
+      : null
+  const displayedActionFeedback = pendingActionChangeFeedback ?? currentActionFeedback
   // Live tally of who is currently voting for whom (Among Us style). Re-voting
   // moves a voter to the new target because the server keeps one vote per actor.
   const votersByTarget = useMemo(() => {
@@ -1080,27 +1148,32 @@ function GameRoom() {
               {confirmLabel}
             </button>
 
-            {currentActionFeedback && (
+            {displayedActionFeedback && (
               <div
                 className={cx(
                   'mt-3 rounded-xl border p-3',
-                  currentActionFeedback.kind === 'success'
-                    ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-100'
-                    : 'border-red-400/40 bg-red-500/10 text-red-100',
+                  displayedActionFeedback.kind === 'success' &&
+                    'border-emerald-400/35 bg-emerald-500/10 text-emerald-100',
+                  displayedActionFeedback.kind === 'error' && 'border-red-400/40 bg-red-500/10 text-red-100',
+                  displayedActionFeedback.kind === 'notice' && 'border-amber-300/35 bg-amber-400/10 text-amber-100',
                 )}
               >
                 <div className="flex items-start gap-3">
                   <span
                     className={cx(
                       'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-                      currentActionFeedback.kind === 'success' ? 'bg-emerald-400/15 text-emerald-200' : 'bg-red-400/15 text-red-200',
+                      displayedActionFeedback.kind === 'success' && 'bg-emerald-400/15 text-emerald-200',
+                      displayedActionFeedback.kind === 'error' && 'bg-red-400/15 text-red-200',
+                      displayedActionFeedback.kind === 'notice' && 'bg-amber-300/15 text-amber-200',
                     )}
                   >
-                    {currentActionFeedback.kind === 'success' ? <ShieldCheck className="h-4 w-4" /> : <ShieldBan className="h-4 w-4" />}
+                    {displayedActionFeedback.kind === 'success' && <ShieldCheck className="h-4 w-4" />}
+                    {displayedActionFeedback.kind === 'error' && <ShieldBan className="h-4 w-4" />}
+                    {displayedActionFeedback.kind === 'notice' && <ShieldQuestion className="h-4 w-4" />}
                   </span>
                   <span className="grid gap-1">
-                    <strong className="text-sm">{currentActionFeedback.title}</strong>
-                    <span className="text-sm leading-5 text-current/80">{currentActionFeedback.body}</span>
+                    <strong className="text-sm">{displayedActionFeedback.title}</strong>
+                    <span className="text-sm leading-5 text-current/80">{displayedActionFeedback.body}</span>
                   </span>
                 </div>
               </div>
