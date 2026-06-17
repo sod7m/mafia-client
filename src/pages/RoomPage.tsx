@@ -131,10 +131,10 @@ export function RoomPage() {
   return (
     <div className="page-shell">
       <SiteHeader />
-      <div className="px-5 py-8 sm:px-8">
+      <div className="px-4 py-5 sm:px-8 sm:py-8">
         <div className="mx-auto max-w-7xl space-y-6">
-        <header className="surface-card rounded-2xl p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <header className="surface-card rounded-2xl p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4 max-sm:flex-col">
             <div>
               <p className="text-xs font-semibold tracking-[0.22em] text-red-400">ROOM</p>
               <h1 className="mt-1 text-3xl font-bold">{room.name}</h1>
@@ -144,11 +144,13 @@ export function RoomPage() {
               </div>
             </div>
 
-            <div className="w-full max-w-[260px] space-y-3">
-              <div className="flex items-center justify-end gap-3">
-                <div className="text-right">
+            <div className="w-full space-y-3 sm:max-w-[260px]">
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <div className="min-w-0 sm:text-right">
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">Код кімнати</p>
-                  <p className="mt-1 text-3xl font-extrabold leading-none tracking-[0.04em] text-red-500">{room.code}</p>
+                  <p className="mt-1 break-all text-3xl font-extrabold leading-none tracking-[0.04em] text-red-500 max-sm:text-2xl">
+                    {room.code}
+                  </p>
                 </div>
                 <button
                   type="button"
@@ -181,7 +183,7 @@ export function RoomPage() {
         )}
         <section className="grid gap-5 lg:grid-cols-[2fr_1fr]">
           <article className="surface-card rounded-2xl p-5">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 max-sm:flex-col max-sm:items-stretch">
               <h2 className="text-2xl font-bold">Склад гравців</h2>
               {room.status !== 'in_progress' && isRoomOwner ? (
                 <button
@@ -230,11 +232,11 @@ export function RoomPage() {
                 return (
                   <div key={player.id} className="surface-muted rounded-xl px-4 py-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
                         <UserRound className="h-4 w-4 text-red-400" />
-                        <p className="font-semibold">{player.nickname}</p>
+                        <p className="truncate font-semibold">{player.nickname}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex shrink-0 flex-wrap justify-end gap-2">
                         {player.isOwner && <span className="status-pill status-waiting">Власник</span>}
                         {user?.id === player.id && <span className="status-pill status-recruiting">Ви</span>}
                       </div>

@@ -728,6 +728,15 @@ function GameRoom() {
         }
       : null
   const displayedActionFeedback = pendingActionChangeFeedback ?? currentActionFeedback
+  const featuredPlayer =
+    selectedTarget ??
+    visiblePlayers.find((player) => player.id === game?.activePlayerId || player.id === game?.pendingExileId) ??
+    currentPlayer ??
+    visiblePlayers[0]
+  const featuredPlayerIndex = featuredPlayer ? visiblePlayers.findIndex((player) => player.id === featuredPlayer.id) : -1
+  const featuredPlayerState = featuredPlayer ? gamePlayersById.get(featuredPlayer.id) : undefined
+  const featuredMedia = featuredPlayer ? voiceMedia.get(featuredPlayer.id) : undefined
+  const showFeaturedVideo = !!featuredPlayer && !!featuredMedia?.videoTrack && canSeeCamera(game, user?.id, featuredPlayer.id)
   // Live tally of who is currently voting for whom (Among Us style). Re-voting
   // moves a voter to the new target because the server keeps one vote per actor.
   const votersByTarget = useMemo(() => {
@@ -978,7 +987,7 @@ function GameRoom() {
   }
 
   return (
-    <div className={cx('flex h-screen flex-col overflow-hidden text-white', theme.page)}>
+    <div className={cx('flex h-screen flex-col overflow-hidden text-white max-lg:h-[100dvh]', theme.page)}>
       {game && (
         <div
           key={`${phase}:${step}:${phaseNumber}:${game.speechIndex ?? 0}`}
@@ -988,13 +997,13 @@ function GameRoom() {
         </div>
       )}
 
-      <header className={cx('grid h-16 shrink-0 grid-cols-[minmax(8rem,1fr)_auto_minmax(8rem,1fr)] items-center gap-4 border-b bg-black/80 px-6 max-md:h-auto max-md:grid-cols-1 max-md:gap-3 max-md:p-3', theme.border)}>
-        <Link to="/" className="inline-flex w-fit items-center gap-2 text-2xl font-extrabold tracking-[0.08em] text-[hsl(var(--secondary))]">
+      <header className={cx('grid h-16 shrink-0 grid-cols-[minmax(8rem,1fr)_auto_minmax(8rem,1fr)] items-center gap-4 border-b bg-black/80 px-6 max-lg:h-auto max-lg:grid-cols-[1fr_auto] max-lg:gap-2 max-lg:p-3', theme.border)}>
+        <Link to="/" className="inline-flex w-fit items-center gap-2 text-2xl font-extrabold tracking-[0.08em] text-[hsl(var(--secondary))] max-lg:order-1 max-lg:text-xl">
           <Skull className="h-4 w-4" />
           MAFIA
         </Link>
 
-        <div className={cx('inline-flex items-center justify-center gap-4 rounded-lg border px-4 py-2 text-sm font-bold text-neutral-200 max-md:w-full max-md:justify-between max-md:text-xs', theme.border, theme.panel)}>
+        <div className={cx('inline-flex items-center justify-center gap-4 rounded-lg border px-4 py-2 text-sm font-bold text-neutral-200 max-lg:order-3 max-lg:col-span-2 max-lg:w-full max-lg:justify-between max-lg:text-xs', theme.border, theme.panel)}>
           <span className={cx('inline-flex items-center gap-2', theme.accent)}>
             <PhaseIcon className="h-4 w-4" />
             {stepDisplayLabel}
@@ -1006,14 +1015,14 @@ function GameRoom() {
           </span>
         </div>
 
-        <button type="button" onClick={handleLeaveGame} className="btn-base btn-danger justify-self-end rounded-lg px-4 py-2 text-sm max-md:justify-self-start">
+        <button type="button" onClick={handleLeaveGame} className="btn-base btn-danger justify-self-end rounded-lg px-4 py-2 text-sm max-lg:order-2 max-lg:px-3">
           <LogOut className="h-4 w-4" />
           Вийти
         </button>
       </header>
 
-      <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_20rem] max-lg:grid-cols-1">
-        <section className="flex min-h-0 min-w-0 flex-col p-4 max-md:p-3">
+      <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_20rem] max-lg:flex max-lg:flex-col max-lg:overflow-hidden">
+        <section className="flex min-h-0 min-w-0 flex-col p-4 max-lg:hidden">
           <div className={cx('min-h-0 flex-1 overflow-hidden', 'grid', playerGridLayout.justify, 'content-start')}>
             <div
               className="grid max-h-full max-w-full content-start justify-start gap-3"
@@ -1096,6 +1105,222 @@ function GameRoom() {
             </div>
           </div>
 
+        </section>
+
+        <section className="hidden min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3 max-lg:flex max-lg:landscape:grid max-lg:landscape:grid-cols-[minmax(0,1fr)_20rem] max-lg:landscape:grid-rows-1 max-lg:landscape:items-stretch">
+          {featuredPlayer && (
+            <div className={cx('grid shrink-0 grid-cols-[5.5rem_minmax(0,1fr)] gap-3 rounded-xl border p-3 max-[420px]:grid-cols-[4.5rem_minmax(0,1fr)] max-lg:landscape:hidden', theme.border, theme.panel)}>
+              <div
+                className={cx(
+                  'relative isolate grid aspect-square overflow-hidden rounded-lg border border-slate-700/80',
+                  tileToneClasses[Math.max(featuredPlayerIndex, 0) % tileToneClasses.length],
+                )}
+              >
+                {showFeaturedVideo && featuredMedia?.videoTrack ? (
+                  <TrackVideo track={featuredMedia.videoTrack} />
+                ) : (
+                  <span
+                    className={cx(
+                      'place-self-center inline-flex h-12 w-12 items-center justify-center rounded-full text-lg font-black max-[420px]:h-10 max-[420px]:w-10 max-[420px]:text-base',
+                      avatarToneClasses[Math.max(featuredPlayerIndex, 0) % avatarToneClasses.length],
+                    )}
+                  >
+                    {getInitials(featuredPlayer.nickname)}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid min-w-0 content-center gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-extrabold uppercase text-neutral-500">
+                    {featuredPlayer.id === selectedTarget?.id ? actionVisual.selected : 'У фокусі'}
+                  </p>
+                  <h2 className="truncate text-lg font-black">{featuredPlayer.nickname}</h2>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {featuredPlayerState?.isAlive === false && <span className="rounded-full bg-neutral-700 px-2 py-1 text-[0.65rem] font-bold">Вибув</span>}
+                  {featuredPlayer.id === user?.id && <span className="rounded-full bg-emerald-600 px-2 py-1 text-[0.65rem] font-bold">Ви</span>}
+                  {currentRole?.kind === 'mafia' && featuredPlayer.id !== user?.id && featuredPlayerState?.role === 'mafia' && (
+                    <span className="rounded-full bg-red-600 px-2 py-1 text-[0.65rem] font-bold">Союзник</span>
+                  )}
+                  {featuredPlayerState?.role && (
+                    <span className="rounded-full bg-white/10 px-2 py-1 text-[0.65rem] font-bold text-neutral-200">
+                      {getPlayerRole(featuredPlayer, Math.max(featuredPlayerIndex, 0), featuredPlayerState.role, featuredPlayerState.side).label}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1 max-lg:landscape:pr-0">
+            <div className="grid gap-2">
+              {visiblePlayers.map((player, index) => {
+                const playerState = gamePlayersById.get(player.id)
+                const isAlive = playerState?.isAlive ?? true
+                const isSelected = selectedTargetId === player.id
+                const isSelf = player.id === user?.id
+                const isMafiaAlly = currentRole?.kind === 'mafia' && !isSelf && playerState?.role === 'mafia'
+                const isActiveSpeaker = player.id === game?.activePlayerId || player.id === game?.pendingExileId
+                const rowVoters = votersByTarget.get(player.id) ?? []
+                const isMyVote = rowVoters.some((voter) => voter.id === user?.id)
+                const pm = voiceMedia.get(player.id)
+                const isSpeaking = !!pm?.isSpeaking
+                const isSelectable =
+                  canSelectTarget &&
+                  !!playerState &&
+                  isAlive &&
+                  (!isSelf || canSelfTarget)
+
+                return (
+                  <button
+                    key={player.id}
+                    type="button"
+                    onClick={() => handlePlayerClick(player)}
+                    className={cx(
+                      'grid min-h-[4.25rem] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border bg-black/28 px-3 py-2 text-left text-white transition',
+                      theme.border,
+                      isSelectable && theme.hover,
+                      isSelected && (selectionTone === 'danger' ? 'border-red-400 bg-red-500/15' : 'border-cyan-300 bg-cyan-500/15'),
+                      isSelf && 'border-yellow-400/70',
+                      isMafiaAlly && 'border-red-500/90 bg-red-500/10',
+                      isSpeaking && 'border-emerald-400',
+                      isActiveSpeaker && 'ring-1 ring-white/25',
+                      !isAlive && 'opacity-45 grayscale',
+                      !isSelectable && 'cursor-default',
+                    )}
+                  >
+                    <span className={cx('inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black', avatarToneClasses[index % avatarToneClasses.length])}>
+                      {getInitials(player.nickname)}
+                    </span>
+
+                    <span className="grid min-w-0 gap-1">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-black/45 px-1 text-[0.65rem] font-black">
+                          {index + 1}
+                        </span>
+                        <span className="truncate text-sm font-extrabold">{player.nickname}</span>
+                      </span>
+                      <span className="flex flex-wrap gap-1">
+                        {isActiveSpeaker && <span className="rounded-full bg-white/10 px-1.5 py-0.5 text-[0.6rem] font-bold text-neutral-200">Говорить</span>}
+                        {!isAlive && <span className="rounded-full bg-neutral-700 px-1.5 py-0.5 text-[0.6rem] font-bold">Вибув</span>}
+                        {isSelf && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[0.6rem] font-bold">Ви</span>}
+                        {isMafiaAlly && <span className="rounded-full bg-red-600 px-1.5 py-0.5 text-[0.6rem] font-bold">Союзник</span>}
+                        {isMyVote && <span className="rounded-full bg-yellow-400 px-1.5 py-0.5 text-[0.6rem] font-black text-black">Ваш голос</span>}
+                      </span>
+                    </span>
+
+                    <span className="grid justify-items-end gap-1 text-xs font-bold text-neutral-300">
+                      {!pm?.micOn && <MicOff className="h-3.5 w-3.5" />}
+                      {step === 'voting' && rowVoters.length > 0 && (
+                        <span className="rounded-full bg-white/10 px-2 py-1 text-[0.65rem] text-white">
+                          {rowVoters.length}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className={cx('shrink-0 rounded-xl border bg-black/86 p-3 shadow-[0_-14px_40px_rgba(0,0,0,0.32)] max-lg:landscape:min-h-0 max-lg:landscape:overflow-y-auto max-lg:landscape:shadow-none', theme.border)}>
+            <div className="grid gap-2">
+              <div className="flex items-start gap-3">
+                <span className={cx('inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', canSelectTarget ? 'bg-red-500/15 text-red-200' : 'bg-white/10 text-neutral-400')}>
+                  <ActionIcon className="h-4 w-4" />
+                </span>
+                <span className="grid min-w-0 gap-0.5">
+                  <span className="text-[0.68rem] font-extrabold uppercase text-neutral-500">{currentTurn}</span>
+                  <strong className="text-sm leading-5">
+                    {selectedTarget
+                      ? selectedTargetState?.isAlive === false
+                        ? `${selectedTarget.nickname} вже вибув`
+                        : `${actionVisual.selected}: ${selectedTarget.nickname}`
+                      : actionVisual.waiting}
+                  </strong>
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConfirmAction}
+                disabled={!selectedTarget || !selectedTargetState || selectedTargetState.isAlive === false}
+                className="btn-base btn-primary w-full px-4 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
+              >
+                <Check className="h-4 w-4" />
+                {confirmLabel}
+              </button>
+
+              {displayedActionFeedback && (
+                <div
+                  className={cx(
+                    'rounded-lg border p-2.5',
+                    displayedActionFeedback.kind === 'success' &&
+                      'border-emerald-400/35 bg-emerald-500/10 text-emerald-100',
+                    displayedActionFeedback.kind === 'error' && 'border-red-400/40 bg-red-500/10 text-red-100',
+                    displayedActionFeedback.kind === 'notice' && 'border-amber-300/35 bg-amber-400/10 text-amber-100',
+                  )}
+                >
+                  <p className="text-xs font-black">{displayedActionFeedback.title}</p>
+                  <p className="mt-1 text-xs leading-4 text-current/80">{displayedActionFeedback.body}</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={toggleMic}
+                    className={cx(
+                      'inline-flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-700 bg-white/10 transition',
+                      !micWanted && 'border-red-500/80 bg-red-500/15 text-red-200',
+                    )}
+                    title={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+                    aria-label={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+                  >
+                    {micWanted ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={toggleCam}
+                    className={cx(
+                      'inline-flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-700 bg-white/10 transition',
+                      !camWanted && 'border-red-500/80 bg-red-500/15 text-red-200',
+                    )}
+                    title={camWanted ? 'Вимкнути камеру' : 'Увімкнути камеру'}
+                    aria-label={camWanted ? 'Вимкнути камеру' : 'Увімкнути камеру'}
+                  >
+                    {camWanted ? <Camera className="h-4 w-4" /> : <CameraOff className="h-4 w-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-neutral-700 bg-white/10 transition"
+                    title="Налаштування"
+                    aria-label="Налаштування"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {room.ownerId === user?.id ? (
+                  <button
+                    type="button"
+                    onClick={handleAdvancePhase}
+                    disabled={phase === 'final' || isAdvancingPhase}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-neutral-700 bg-neutral-900/80 px-3 text-xs font-bold text-neutral-200 transition disabled:pointer-events-none disabled:opacity-45"
+                  >
+                    <PhaseIcon className="h-4 w-4" />
+                    {isAdvancingPhase ? '...' : getNextStepLabel(step, isIntroRound)}
+                  </button>
+                ) : (
+                  <span className="text-right text-[0.65rem] font-bold text-neutral-500">Фазами керує власник</span>
+                )}
+              </div>
+
+              {currentPhaseFeedback && <p className="text-right text-[0.68rem] font-bold text-red-300">{currentPhaseFeedback}</p>}
+            </div>
+          </div>
         </section>
 
         <aside className={cx('flex min-h-0 flex-col gap-4 border-l bg-black/80 p-4 max-lg:hidden', theme.border)}>
@@ -1182,7 +1407,7 @@ function GameRoom() {
         </aside>
       </main>
 
-      <footer className="grid h-20 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-t border-neutral-800 bg-neutral-950/95 px-6 max-md:h-auto max-md:grid-cols-1 max-md:justify-items-center max-md:p-3">
+      <footer className="grid h-20 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-4 border-t border-neutral-800 bg-neutral-950/95 px-6 max-lg:hidden">
         <div className="flex min-w-0 items-center gap-3 justify-self-start max-md:w-full">
           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-700 text-xs font-black">
             {getInitials(user?.nickname ?? '?')}
