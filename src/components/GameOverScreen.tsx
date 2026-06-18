@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Mic, MicOff, Skull, Trophy } from 'lucide-react'
+import { useLanguage } from '../context/useLanguage.ts'
 import { useVoice } from '../context/VoiceContext.tsx'
 import type { Game, GameRole } from '../types/game.ts'
 
@@ -9,20 +10,67 @@ interface Props {
   onLeave: () => void
 }
 
-const ROLE_LABEL: Record<GameRole, string> = {
-  commissioner: 'Комісар',
-  doctor: 'Лікар',
-  civilian: 'Мирний',
-  mafia: 'Мафія',
-  mistress: 'Коханка',
-}
-
-const ROLE_DETAIL: Record<GameRole, { team: string; kind: 'town' | 'mafia' }> = {
-  commissioner: { team: 'Мирні', kind: 'town' },
-  doctor: { team: 'Мирні', kind: 'town' },
-  civilian: { team: 'Мирні', kind: 'town' },
-  mafia: { team: 'Мафія', kind: 'mafia' },
-  mistress: { team: 'Мафія', kind: 'mafia' },
+const endCopy = {
+  en: {
+    roleLabel: {
+      commissioner: 'Commissioner',
+      doctor: 'Doctor',
+      civilian: 'Civilian',
+      mafia: 'Syndicate',
+      mistress: 'Lover',
+    },
+    roleDetail: {
+      commissioner: { team: 'Town', kind: 'town' as const },
+      doctor: { team: 'Town', kind: 'town' as const },
+      civilian: { team: 'Town', kind: 'town' as const },
+      mafia: { team: 'Syndicate', kind: 'mafia' as const },
+      mistress: { team: 'Syndicate', kind: 'mafia' as const },
+    },
+    townWonTitle: 'TOWN WINS',
+    mafiaWonTitle: 'SYNDICATE WINS',
+    townWonText: 'Town wins. Every syndicate member has been eliminated.',
+    mafiaWonText: 'Syndicate wins. The town can no longer outvote them.',
+    winners: 'Winners',
+    losers: 'Defeated',
+    returnIn: 'Returning to lobby in',
+    seconds: 's',
+    micOff: 'Mute microphone',
+    micOn: 'Unmute microphone',
+    lobby: 'Lobby',
+    you: 'You',
+    alive: 'Alive',
+    dead: 'Dead',
+  },
+  uk: {
+    roleLabel: {
+      commissioner: 'Комісар',
+      doctor: 'Лікар',
+      civilian: 'Мирний',
+      mafia: 'Мафія',
+      mistress: 'Коханка',
+    },
+    roleDetail: {
+      commissioner: { team: 'Мирні', kind: 'town' as const },
+      doctor: { team: 'Мирні', kind: 'town' as const },
+      civilian: { team: 'Мирні', kind: 'town' as const },
+      mafia: { team: 'Мафія', kind: 'mafia' as const },
+      mistress: { team: 'Мафія', kind: 'mafia' as const },
+    },
+    townWonTitle: 'МІСТО ПЕРЕМОГЛО',
+    mafiaWonTitle: 'МАФІЯ ПЕРЕМОГЛА',
+    townWonText: 'Мирні перемогли. Уся мафія вибула.',
+    mafiaWonText: 'Мафія перемогла. Її вже не можна переголосувати.',
+    winners: 'Переможці',
+    losers: 'Програли',
+    returnIn: 'Повернення до лобі через',
+    seconds: 'с',
+    micOff: 'Вимкнути мікрофон',
+    micOn: 'Увімкнути мікрофон',
+    lobby: 'До лобі',
+    you: 'Ви',
+    alive: 'Живий',
+    dead: 'Загинув',
+  },
 }
 
 const AUTO_REDIRECT_SECONDS = 20
@@ -45,6 +93,8 @@ function initials(nickname: string) {
 }
 
 export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
+  const { language } = useLanguage()
+  const copy = endCopy[language]
   const [countdown, setCountdown] = useState(AUTO_REDIRECT_SECONDS)
   const hasLeft = useRef(false)
   const { micWanted, toggleMic } = useVoice()
@@ -64,8 +114,8 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
     return () => window.clearTimeout(t)
   }, [countdown, safeLeave])
 
-  const finishedEvent = [...game.events].reverse().find((e) => e.type === 'game.finished')
-  const townWon = finishedEvent ? finishedEvent.message.includes('Мирні') : true
+  const townWon = !game.players.some((player) => player.isAlive && isMafia(player.role))
+  const finishedText = townWon ? copy.townWonText : copy.mafiaWonText
 
   const winners = game.players.filter((p) => (townWon ? !isMafia(p.role) : isMafia(p.role)))
   const losers = game.players.filter((p) => (townWon ? isMafia(p.role) : !isMafia(p.role)))
@@ -94,11 +144,11 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
         </div>
 
         <h1 className={`text-5xl font-black tracking-tight ${accent} max-sm:text-[2.1rem]`}>
-          {townWon ? 'МІСТО ПЕРЕМОГЛО' : 'МАФІЯ ПЕРЕМОГЛА'}
+          {townWon ? copy.townWonTitle : copy.mafiaWonTitle}
         </h1>
 
         <p className="mt-3 max-w-sm text-[0.97rem] leading-relaxed text-neutral-400">
-          {finishedEvent?.message ?? ''}
+          {finishedText}
         </p>
       </div>
 
@@ -108,7 +158,7 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
       <div className="mx-auto w-full max-w-3xl flex-1 grid gap-8 px-6 py-10 sm:grid-cols-2">
         <section className="animate-[slideUp_0.5s_ease-out_0.18s_both]">
           <p className={`mb-4 text-[0.68rem] font-extrabold uppercase tracking-[0.12em] ${accent}`}>
-            Переможці
+            {copy.winners}
           </p>
           <div className="grid gap-2">
             {winners.map((p, i) => (
@@ -122,6 +172,7 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
                 cardBorder={winCardBorder}
                 avatarBg={winAvatarBg}
                 delay={100 + i * 60}
+                copy={copy}
               />
             ))}
           </div>
@@ -129,7 +180,7 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
 
         <section className="animate-[slideUp_0.5s_ease-out_0.32s_both]">
           <p className="mb-4 text-[0.68rem] font-extrabold uppercase tracking-[0.12em] text-neutral-500">
-            Програли
+            {copy.losers}
           </p>
           <div className="grid gap-2">
             {losers.map((p, i) => (
@@ -143,6 +194,7 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
                 cardBorder={winCardBorder}
                 avatarBg={winAvatarBg}
                 delay={180 + i * 60}
+                copy={copy}
               />
             ))}
           </div>
@@ -153,15 +205,15 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
       <div className="sticky bottom-0 border-t border-white/10 bg-black/75 px-6 py-4 backdrop-blur-sm animate-[fadeIn_0.5s_ease-out_0.6s_both]">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
           <span className="text-sm text-neutral-500">
-            Повернення до лобі через{' '}
-            <span className="font-bold tabular-nums text-neutral-300">{countdown}с</span>
+            {copy.returnIn}{' '}
+            <span className="font-bold tabular-nums text-neutral-300">{countdown}{copy.seconds}</span>
           </span>
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={toggleMic}
-              title={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
-              aria-label={micWanted ? 'Вимкнути мікрофон' : 'Увімкнути мікрофон'}
+              title={micWanted ? copy.micOff : copy.micOn}
+              aria-label={micWanted ? copy.micOff : copy.micOn}
               className={`inline-flex h-10 w-10 items-center justify-center rounded-lg border transition ${
                 micWanted
                   ? 'border-neutral-700 bg-white/10 hover:bg-white/15'
@@ -171,7 +223,7 @@ export function GameOverScreen({ game, currentUserId, onLeave }: Props) {
               {micWanted ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
             </button>
             <button type="button" onClick={safeLeave} className="btn-base btn-primary px-6 py-2.5 text-sm">
-              До лобі
+              {copy.lobby}
             </button>
           </div>
         </div>
@@ -189,10 +241,11 @@ interface PlayerCardProps {
   cardBorder: string
   avatarBg: string
   delay: number
+  copy: typeof endCopy.en
 }
 
-function PlayerCard({ nickname, role, isAlive, isSelf, isWinner, cardBorder, avatarBg, delay }: PlayerCardProps) {
-  const roleInfo = role ? ROLE_DETAIL[role] : null
+function PlayerCard({ nickname, role, isAlive, isSelf, isWinner, cardBorder, avatarBg, delay, copy }: PlayerCardProps) {
+  const roleInfo = role ? copy.roleDetail[role] : null
 
   return (
     <div
@@ -214,12 +267,12 @@ function PlayerCard({ nickname, role, isAlive, isSelf, isWinner, cardBorder, ava
           <span className="truncate text-sm font-bold">{nickname}</span>
           {isSelf && (
             <span className="shrink-0 rounded-full bg-yellow-500/20 px-1.5 py-px text-[0.58rem] font-bold text-yellow-400">
-              Ви
+              {copy.you}
             </span>
           )}
         </div>
         <span className="text-xs text-neutral-400">
-          {role ? ROLE_LABEL[role] : '—'}
+          {role ? copy.roleLabel[role] : '—'}
           {roleInfo && (
             <span
               className={`ml-1.5 ${roleInfo.kind === 'mafia' ? 'text-red-400/70' : 'text-blue-400/70'}`}
@@ -231,7 +284,7 @@ function PlayerCard({ nickname, role, isAlive, isSelf, isWinner, cardBorder, ava
       </div>
 
       <span className={`shrink-0 text-xs font-bold ${isAlive ? 'text-emerald-400' : 'text-neutral-600'}`}>
-        {isAlive ? 'Живий' : 'Загинув'}
+        {isAlive ? copy.alive : copy.dead}
       </span>
     </div>
   )

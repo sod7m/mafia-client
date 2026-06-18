@@ -5,65 +5,176 @@ import { Modal } from '../components/Modal.tsx'
 import { SiteFooter } from '../components/SiteFooter.tsx'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
+import { useLanguage } from '../context/useLanguage.ts'
 import { MAX_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
 import heroImage from '../assets/hero-bg.jpg'
 
-const gamePhases = [
-  {
-    icon: Moon,
-    title: 'Ніч',
-    description: 'Мафія таємно обирає жертву. Мирні жителі сплять і не знають, що відбувається.',
-    tone: 'mafia' as const,
+const homeCopy = {
+  en: {
+    heroTitle: 'OMERTA',
+    heroDescription:
+      'A classic social deduction survival game with voice and video chat. Find the hidden syndicate before it is too late.',
+    upToPlayers: `Up to ${MAX_PLAYERS_IN_ROOM} players`,
+    realTime: 'Play with friends in real time',
+    videoVoice: 'Video and voice',
+    videoVoiceText: 'Built-in voice and video chat.',
+    classicRules: 'Classic rules',
+    classicRulesText: 'Traditional social deduction.',
+    start: 'Start playing',
+    continueAs: 'Continue as',
+    tagline: 'Free online game • No registration required • Play directly in your browser',
+    howTitleA: 'How to play',
+    howTitleB: 'OMERTA',
+    howText: 'A simple, tense social game of logic and deduction',
+    rolesTitle: 'Game roles',
+    victoryTitle: 'Victory conditions',
+    loginTitle: 'Enter the game',
+    nicknameLabel: 'Your nickname',
+    nicknamePlaceholder: 'For example, DonVito',
+    nicknameShort: 'Nickname must be at least 2 characters.',
+    nicknameLong: 'Nickname must be shorter than 20 characters.',
+    loginError: 'Could not sign in.',
+    signingIn: 'Signing in...',
+    enterRooms: 'Enter and go to rooms',
+    scrollLabel: 'Scroll down to the next section',
+    phases: [
+      {
+        icon: Moon,
+        title: 'Night',
+        description: 'The syndicate secretly chooses a victim. Town players sleep and do not know what happened.',
+        tone: 'mafia' as const,
+      },
+      {
+        icon: Sun,
+        title: 'Day',
+        description: 'Everyone discusses who may be guilty. Time to use logic, instincts, and pressure.',
+        tone: 'gold' as const,
+      },
+      {
+        icon: Vote,
+        title: 'Vote',
+        description: 'Players vote for the most suspicious person. The top target leaves the game.',
+        tone: 'mafia' as const,
+      },
+    ],
+    roles: [
+      {
+        icon: User,
+        title: 'Syndicate',
+        description: 'They try to eliminate the town. They act secretly at night.',
+        tone: 'mafia' as const,
+      },
+      {
+        icon: Users,
+        title: 'Town',
+        description: 'They try to identify and exile the syndicate by discussion and voting.',
+        tone: 'civilian' as const,
+      },
+      {
+        icon: Crown,
+        title: 'Host',
+        description: 'Controls the flow of the game, phases, timers, and results.',
+        tone: 'moderator' as const,
+      },
+    ],
+    victories: [
+      {
+        icon: User,
+        title: 'Syndicate Victory',
+        description: 'When syndicate players are equal to or outnumber town players',
+        tone: 'mafia' as const,
+      },
+      {
+        icon: Users,
+        title: 'Town Victory',
+        description: 'When every syndicate member has been found and removed from the game',
+        tone: 'civilian' as const,
+      },
+    ],
   },
-  {
-    icon: Sun,
-    title: 'День',
-    description: 'Всі обговорюють, хто може бути мафією. Час використати логіку та інстинкти.',
-    tone: 'gold' as const,
+  uk: {
+    heroTitle: 'OMERTA',
+    heroDescription:
+      'Класична гра на виживання з голосовим та відео-звʼязком. Знайдіть мафію серед мирних жителів, поки не стало занадто пізно.',
+    upToPlayers: `До ${MAX_PLAYERS_IN_ROOM} гравців`,
+    realTime: 'Грайте з друзями в реальному часі',
+    videoVoice: 'Відео та голос',
+    videoVoiceText: 'Підтримка голосового та відеочату.',
+    classicRules: 'Класичні правила',
+    classicRulesText: 'Традиційна механіка гри Мафія',
+    start: 'Почати гру',
+    continueAs: 'Продовжити як',
+    tagline: 'Безкоштовна онлайн-гра • Не потрібна реєстрація • Грайте прямо в браузері',
+    howTitleA: 'Як грати в',
+    howTitleB: 'OMERTA',
+    howText: 'Проста та захоплююча соціальна гра на логіку та дедукцію',
+    rolesTitle: 'Ролі в грі',
+    victoryTitle: 'Умови перемоги',
+    loginTitle: 'Вхід у гру',
+    nicknameLabel: 'Ваш nickname',
+    nicknamePlaceholder: 'Наприклад, DonVito',
+    nicknameShort: 'Nickname має містити щонайменше 2 символи.',
+    nicknameLong: 'Nickname має бути коротшим за 20 символів.',
+    loginError: 'Не вдалося увійти.',
+    signingIn: 'Вхід...',
+    enterRooms: 'Увійти та перейти до кімнат',
+    scrollLabel: 'Прокрутити вниз до наступного блоку',
+    phases: [
+      {
+        icon: Moon,
+        title: 'Ніч',
+        description: 'Мафія таємно обирає жертву. Мирні жителі сплять і не знають, що відбувається.',
+        tone: 'mafia' as const,
+      },
+      {
+        icon: Sun,
+        title: 'День',
+        description: 'Всі обговорюють, хто може бути мафією. Час використати логіку та інстинкти.',
+        tone: 'gold' as const,
+      },
+      {
+        icon: Vote,
+        title: 'Голосування',
+        description: 'Гравці голосують за найбільш підозрілого. Той, хто отримає більшість голосів, вибуває.',
+        tone: 'mafia' as const,
+      },
+    ],
+    roles: [
+      {
+        icon: User,
+        title: 'Мафія',
+        description: 'Прагнуть знищити всіх мирних жителів. Діють вночі таємно.',
+        tone: 'mafia' as const,
+      },
+      {
+        icon: Users,
+        title: 'Мирні жителі',
+        description: 'Намагаються виявити та вигнати мафію голосуванням.',
+        tone: 'civilian' as const,
+      },
+      {
+        icon: Crown,
+        title: 'Ведучий',
+        description: 'Керує процесом гри, оголошує фази та результати.',
+        tone: 'moderator' as const,
+      },
+    ],
+    victories: [
+      {
+        icon: User,
+        title: 'Перемога Мафії',
+        description: 'Коли кількість мафії дорівнює або перевищує кількість мирних жителів',
+        tone: 'mafia' as const,
+      },
+      {
+        icon: Users,
+        title: 'Перемога мирних',
+        description: 'Коли всі члени мафії виявлені та виключені з гри',
+        tone: 'civilian' as const,
+      },
+    ],
   },
-  {
-    icon: Vote,
-    title: 'Голосування',
-    description: 'Гравці голосують за найбільш підозрілого. Той, хто отримає більшість голосів, вибуває.',
-    tone: 'mafia' as const,
-  },
-]
-
-const roleCards = [
-  {
-    icon: User,
-    title: 'Мафія',
-    description: 'Прагнуть знищити всіх мирних жителів. Діють вночі таємно.',
-    tone: 'mafia' as const,
-  },
-  {
-    icon: Users,
-    title: 'Мирні жителі',
-    description: 'Намагаються виявити та вигнати мафію голосуванням.',
-    tone: 'civilian' as const,
-  },
-  {
-    icon: Crown,
-    title: 'Ведучий',
-    description: 'Керує процесом гри, оголошує фази та результати.',
-    tone: 'moderator' as const,
-  },
-]
-
-const victoryConditions = [
-  {
-    icon: User,
-    title: 'Перемога Мафії',
-    description: 'Коли кількість мафії дорівнює або перевищує кількість мирних жителів',
-    tone: 'mafia' as const,
-  },
-  {
-    icon: Users,
-    title: 'Перемога мирних',
-    description: 'Коли всі члени мафії виявлені та виключені з гри',
-    tone: 'civilian' as const,
-  },
-]
+}
 
 const toneClassNames = {
   mafia: {
@@ -92,6 +203,8 @@ const toneClassNames = {
 export function HomePage() {
   const navigate = useNavigate()
   const { user, login } = useGame()
+  const { language } = useLanguage()
+  const copy = homeCopy[language]
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [nickname, setNickname] = useState(user?.nickname ?? '')
   const [error, setError] = useState('')
@@ -220,12 +333,12 @@ export function HomePage() {
     const cleanNickname = nickname.trim()
 
     if (cleanNickname.length < 2) {
-      setError('Nickname має містити щонайменше 2 символи.')
+      setError(copy.nicknameShort)
       return
     }
 
     if (cleanNickname.length > 20) {
-      setError('Nickname має бути коротшим за 20 символів.')
+      setError(copy.nicknameLong)
       return
     }
 
@@ -234,7 +347,7 @@ export function HomePage() {
     setIsSubmitting(false)
 
     if (!result.ok) {
-      setError(result.error ?? 'Не вдалося увійти.')
+      setError(result.error ?? copy.loginError)
       return
     }
 
@@ -282,35 +395,34 @@ export function HomePage() {
             </div>
 
             <h1 className="mb-4 text-6xl font-extrabold tracking-tight sm:text-8xl">
-              <span className="title-gradient">MAFIA</span>
+              <span className="title-gradient">{copy.heroTitle}</span>
             </h1>
 
             <p className="mx-auto max-w-3xl text-base leading-relaxed text-[hsl(var(--muted-foreground))] sm:text-xl">
-              Класична гра на виживання з голосовим та відео-зв&apos;язком. Знайдіть мафію серед мирних жителів, поки не
-              стало занадто пізно.
+              {copy.heroDescription}
             </p>
 
             <div className="mx-auto mt-9 grid max-w-3xl gap-4 sm:grid-cols-3">
               <div className="surface-muted rounded-2xl p-4">
                 <Users className="mx-auto mb-2 h-7 w-7 text-red-400" />
-                <h2 className="mb-2 text-lg font-semibold">До {MAX_PLAYERS_IN_ROOM} гравців</h2>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">Грайте з друзями в реальному часі</p>
+                <h2 className="mb-2 text-lg font-semibold">{copy.upToPlayers}</h2>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">{copy.realTime}</p>
               </div>
               <div className="surface-muted rounded-2xl p-4">
                 <Video className="mx-auto mb-2 h-7 w-7 text-yellow-300" />
-                <h2 className="mb-2 text-lg font-semibold">Відео та голос</h2>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">Підтримка голосового та відеочату.</p>
+                <h2 className="mb-2 text-lg font-semibold">{copy.videoVoice}</h2>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">{copy.videoVoiceText}</p>
               </div>
               <div className="surface-muted rounded-2xl p-4">
                 <Skull className="mx-auto mb-2 h-7 w-7 text-red-500" />
-                <h2 className="mb-2 text-lg font-semibold">Класичні правила</h2>
-                <p className="text-sm text-[hsl(var(--muted-foreground))]">Традиційна механіка гри Мафія</p>
+                <h2 className="mb-2 text-lg font-semibold">{copy.classicRules}</h2>
+                <p className="text-sm text-[hsl(var(--muted-foreground))]">{copy.classicRulesText}</p>
               </div>
             </div>
 
             <div className="mt-10 flex flex-col items-center justify-center gap-4">
               <button type="button" onClick={openLogin} className="btn-base btn-primary px-10 py-4 text-lg sm:px-12">
-                Почати гру
+                {copy.start}
               </button>
               {user && (
                 <button
@@ -318,13 +430,13 @@ export function HomePage() {
                   onClick={() => navigate('/rooms')}
                   className="btn-base btn-outline px-6 py-3 text-base"
                 >
-                  Продовжити як {user.nickname}
+                  {copy.continueAs} {user.nickname}
                 </button>
               )}
             </div>
 
             <p className="mt-10 text-sm text-[hsl(var(--muted-foreground))]">
-              Безкоштовна онлайн-гра • Не потрібна реєстрація • Грайте прямо в браузері
+              {copy.tagline}
             </p>
           </div>
         </div>
@@ -333,7 +445,7 @@ export function HomePage() {
           type="button"
           onClick={scrollToHowItWorks}
           className="hero-scroll-indicator"
-          aria-label="Прокрутити вниз до наступного блоку"
+          aria-label={copy.scrollLabel}
         >
           <span className="hero-scroll-mouse">
             <span className="hero-scroll-wheel" />
@@ -345,15 +457,15 @@ export function HomePage() {
         <div className="mx-auto max-w-6xl">
           <div className="scroll-reveal reveal-from-bottom mb-10 text-center">
             <h2 className="mb-2 text-3xl font-bold sm:text-4xl">
-              Як грати в <span className="text-red-400">Мафію</span>
+              {copy.howTitleA} <span className="text-red-400">{copy.howTitleB}</span>
             </h2>
             <p className="mx-auto max-w-2xl text-[hsl(var(--muted-foreground))]">
-              Проста та захоплююча соціальна гра на логіку та дедукцію
+              {copy.howText}
             </p>
           </div>
 
           <div className="mb-12 grid gap-5 md:grid-cols-3">
-            {gamePhases.map(({ icon: Icon, title, description, tone }, index) => (
+            {copy.phases.map(({ icon: Icon, title, description, tone }, index) => (
               <article
                 key={title}
                 className={`surface-card premium-card phase-card scroll-reveal reveal-from-bottom reveal-delay-${index + 1} rounded-2xl p-6 text-center ${toneClassNames[tone].card}`}
@@ -370,9 +482,9 @@ export function HomePage() {
           </div>
 
           <div id="roles-section" className="mb-12">
-            <h3 className="scroll-reveal reveal-from-bottom mb-8 text-center text-3xl font-bold">Ролі в грі</h3>
+            <h3 className="scroll-reveal reveal-from-bottom mb-8 text-center text-3xl font-bold">{copy.rolesTitle}</h3>
             <div className="grid gap-5 md:grid-cols-3">
-              {roleCards.map(({ icon: Icon, title, description, tone }, index) => (
+              {copy.roles.map(({ icon: Icon, title, description, tone }, index) => (
                 <article
                   key={title}
                   className={`${toneClassNames[tone].border} premium-card scroll-reveal ${index % 2 === 0 ? 'reveal-from-left' : 'reveal-from-right'} reveal-delay-${index + 1}`}
@@ -390,9 +502,9 @@ export function HomePage() {
           </div>
 
           <div className="surface-card premium-card scroll-reveal reveal-from-bottom reveal-delay-2 rounded-2xl p-7 sm:p-8">
-            <h3 className="mb-7 text-center text-3xl font-bold">Умови перемоги</h3>
+            <h3 className="mb-7 text-center text-3xl font-bold">{copy.victoryTitle}</h3>
             <div className="grid gap-7 md:grid-cols-2">
-              {victoryConditions.map(({ icon: Icon, title, description, tone }, index) => (
+              {copy.victories.map(({ icon: Icon, title, description, tone }, index) => (
                 <article
                   key={title}
                   className={`scroll-reveal ${index % 2 === 0 ? 'reveal-from-left' : 'reveal-from-right'} reveal-delay-${index + 1} flex items-start gap-4`}
@@ -413,11 +525,11 @@ export function HomePage() {
 
       <SiteFooter />
 
-      <Modal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} title="Вхід у гру">
+      <Modal open={isLoginOpen} onClose={() => setIsLoginOpen(false)} title={copy.loginTitle}>
         <form className="space-y-4" onSubmit={submitNickname}>
           <div className="space-y-2">
             <label htmlFor="nickname" className="block text-sm text-[hsl(var(--muted-foreground))]">
-              Ваш nickname
+              {copy.nicknameLabel}
             </label>
             <input
               id="nickname"
@@ -428,7 +540,7 @@ export function HomePage() {
               maxLength={20}
               onChange={(event) => setNickname(event.target.value)}
               className="w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-white outline-none transition focus:border-red-500"
-              placeholder="Наприклад, DonVito"
+              placeholder={copy.nicknamePlaceholder}
             />
             {error && <p className="text-sm text-red-300">{error}</p>}
           </div>
@@ -437,7 +549,7 @@ export function HomePage() {
             disabled={isSubmitting}
             className="btn-base btn-primary w-full px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
           >
-            {isSubmitting ? 'Вхід...' : 'Увійти та перейти до кімнат'}
+            {isSubmitting ? copy.signingIn : copy.enterRooms}
           </button>
         </form>
       </Modal>

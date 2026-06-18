@@ -1,4 +1,4 @@
-# Mafia Client
+# OMERTA Client
 
 Веб-клієнт онлайн-гри «Мафія». Працює в парі з [`mafia-server`](../mafia-server)
 (Go HTTP API + WebSocket) — сервер є джерелом істини для стану гри, а клієнт

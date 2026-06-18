@@ -1,16 +1,26 @@
 import type { RoomStatus } from '../types/game.ts'
+import type { Language } from '../context/language.ts'
 
 export const MAX_PLAYERS_IN_ROOM = 16
 export const MIN_PLAYERS_IN_ROOM = 6
 
 export const LOBBY_STATUSES: RoomStatus[] = ['waiting', 'preparation', 'recruiting']
 
-export const roomStatusLabel: Record<RoomStatus, string> = {
-  waiting: 'Очікування',
-  preparation: 'Підготовка',
-  recruiting: 'Набір гравців',
-  in_progress: 'У грі',
-  finished: 'Завершена',
+export const roomStatusLabel: Record<Language, Record<RoomStatus, string>> = {
+  en: {
+    waiting: 'Waiting',
+    preparation: 'Ready',
+    recruiting: 'Recruiting',
+    in_progress: 'In game',
+    finished: 'Finished',
+  },
+  uk: {
+    waiting: 'Очікування',
+    preparation: 'Підготовка',
+    recruiting: 'Набір гравців',
+    in_progress: 'У грі',
+    finished: 'Завершена',
+  },
 }
 
 export const roomStatusColor: Record<RoomStatus, string> = {
