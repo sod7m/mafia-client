@@ -871,6 +871,7 @@ function TrackVideo({ track }: { track: Track }) {
       return
     }
     track.attach(element)
+    void element.play().catch(() => {})
     return () => {
       track.detach(element)
     }
@@ -1467,6 +1468,7 @@ function GameRoom() {
                 const rowVoters = votersByTarget.get(player.id) ?? []
                 const isMyVote = rowVoters.some((voter) => voter.id === user?.id)
                 const pm = voiceMedia.get(player.id)
+                const showRowVideo = !!pm?.videoTrack && canSeeCamera(game, user?.id, player.id)
                 const isSpeaking = !!pm?.isSpeaking
                 const isSelectable =
                   canSelectTarget &&
@@ -1492,8 +1494,17 @@ function GameRoom() {
                       !isSelectable && 'cursor-default',
                     )}
                   >
-                    <span className={cx('inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-black', avatarToneClasses[index % avatarToneClasses.length])}>
-                      {getInitials(player.nickname)}
+                    <span
+                      className={cx(
+                        'relative isolate inline-flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-black',
+                        showRowVideo ? 'bg-black ring-1 ring-white/15' : avatarToneClasses[index % avatarToneClasses.length],
+                      )}
+                    >
+                      {showRowVideo && pm?.videoTrack ? (
+                        <TrackVideo track={pm.videoTrack} />
+                      ) : (
+                        getInitials(player.nickname)
+                      )}
                     </span>
 
                     <span className="grid min-w-0 gap-1">
