@@ -1,8 +1,20 @@
 # OMERTA Client
 
-Веб-клієнт онлайн-гри «Мафія». Працює в парі з [`mafia-server`](../mafia-server)
+Веб-клієнт онлайн-гри **OMERTA**. Працює в парі з [`mafia-server`](../mafia-server)
 (Go HTTP API + WebSocket) — сервер є джерелом істини для стану гри, а клієнт
 відмальовує лобі, кімнати та ігровий екран і шле дії гравця в API.
+
+## Поточний стан
+
+- Основна мова інтерфейсу — **English**.
+- Доступний перемикач мови **EN / UA**; вибір зберігається в `localStorage`.
+- Брендинг у клієнті — **OMERTA**.
+- Ігровий екран має окрему адаптивну мобільну розкладку: список гравців,
+  фокус-гравець, роль, дія та керування фазами залишаються доступними на телефоні.
+- Журнал подій прибраний з UI; замість нього показуються акуратні статуси
+  поточної дії гравця.
+- Звичайна мафія бачить інших звичайних мафіозі як союзників; Коханка не
+  підсвічується як teammate.
 
 ## Техстек
 
@@ -56,10 +68,13 @@ VITE_API_BASE_URL=http://localhost:8080 npm run dev
   `sessionStorage`; токен живе 24 год на сервері.
 - Глобальний стан — у `src/context/GameContext.tsx` (кімнати, гра, WebSocket,
   recovery після reload/reconnect).
+- Мова інтерфейсу — у `src/context/LanguageContext.tsx` +
+  `src/context/useLanguage.ts`.
 - HTTP-клієнт — у `src/lib/api.ts`. Realtime — підписка на `/ws`; після сигналу
   `game.updated` клієнт дочитує приватний стан через `GET /api/games/{roomId}`.
 - Ігровий екран (`src/pages/GamePage.tsx`) рендерить серверний snapshot: фази,
-  кроки, таймери, ролі, дії та журнал подій.
+  кроки, таймери, ролі, дії, голосування, мобільний список гравців і статуси
+  поточної дії.
 
 ### Ознайомчий перший раунд
 
@@ -73,3 +88,15 @@ round 1 ігровий екран ховає вибір цілі та показ
 
 `src/test/gameUtils.test.ts` — unit-тести допоміжних функцій ігрового екрана
 (`formatTimer`, `getInitials`, `getSecondsLeft`).
+
+## Деплой
+
+- Актуальна production-гілка фронтенду: `main`.
+- Cloudflare Workers URL: `https://mafia-client.dmytrofeedback.workers.dev/`.
+- Перед деплоєм варто прогнати:
+
+```bash
+npm run lint
+npm test
+npm run build
+```
