@@ -136,7 +136,7 @@ export function VoiceProvider({ url, token, enabled, children }: VoiceProviderPr
 
     room.connect(url, token).catch((connectError) => {
       if (!cancelled) {
-        setError(connectError instanceof Error ? connectError.message : 'Не вдалося підключити голосовий чат')
+        setError(connectError instanceof Error ? connectError.message : 'Could not connect voice chat')
       }
     })
 
@@ -161,7 +161,7 @@ export function VoiceProvider({ url, token, enabled, children }: VoiceProviderPr
   useEffect(() => {
     const localParticipant = roomRef.current?.localParticipant
     if (!connected || !localParticipant) return
-    void localParticipant.setCameraEnabled(userWantsCam).catch(() => setError('Немає доступу до камери'))
+    void localParticipant.setCameraEnabled(userWantsCam).catch(() => setError('Camera access is unavailable'))
   }, [connected, userWantsCam])
 
   // Who may subscribe to my tracks. Applies to current and future tracks, so a

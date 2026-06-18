@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { useLanguage } from '../context/useLanguage.ts'
 
 interface ModalProps {
   open: boolean
@@ -8,6 +9,8 @@ interface ModalProps {
 }
 
 export function Modal({ open, title, onClose, children }: ModalProps) {
+  const { language } = useLanguage()
+
   useEffect(() => {
     if (!open) {
       return undefined
@@ -47,7 +50,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
             onClick={onClose}
             className="btn-base btn-outline px-3 py-1 text-sm font-semibold"
           >
-            Закрити
+            {language === 'uk' ? 'Закрити' : 'Close'}
           </button>
         </div>
         {children}

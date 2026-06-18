@@ -167,7 +167,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setApiError('')
       return { ok: true }
     } catch (error) {
-      const message = getErrorMessage(error, 'Не вдалося оновити список кімнат.')
+      const message = getErrorMessage(error, 'Could not refresh the room list.')
       setApiError(message)
       return { ok: false, error: message }
     } finally {
@@ -186,7 +186,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setApiError('')
       return { ok: true, roomId: response.room.id }
     } catch (error) {
-      const message = getErrorMessage(error, 'Не вдалося завантажити кімнату.')
+      const message = getErrorMessage(error, 'Could not load the room.')
       setApiError(message)
       return { ok: false, error: message }
     } finally {
@@ -200,7 +200,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomId: string, options?: { silent?: boolean }): Promise<ActionResult> => {
       const currentToken = token
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       if (!options?.silent) {
@@ -216,7 +216,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setApiError('')
         return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося завантажити гру.')
+        const message = getErrorMessage(error, 'Could not load the game.')
         setApiError(message)
         return { ok: false, error: message }
       } finally {
@@ -360,7 +360,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (nickname: string): Promise<ActionResult> => {
     const cleanNickname = nickname.trim()
     if (!cleanNickname) {
-      return { ok: false, error: 'Вкажіть nickname.' }
+      return { ok: false, error: 'Enter a nickname.' }
     }
 
     setIsLoading(true)
@@ -372,7 +372,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       await refreshRooms()
       return { ok: true }
     } catch (error) {
-      const message = getErrorMessage(error, 'Не вдалося увійти.')
+      const message = getErrorMessage(error, 'Could not sign in.')
       setApiError(message)
       return { ok: false, error: message }
     } finally {
@@ -397,7 +397,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const requireToken = useCallback((): string | null => {
     if (!token) {
-      setApiError('Сесію користувача не знайдено.')
+      setApiError('User session was not found.')
       return null
     }
 
@@ -408,7 +408,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomName: string, maxPlayers: number): Promise<ActionResult> => {
       const currentToken = requireToken()
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       setIsLoading(true)
@@ -418,7 +418,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setApiError('')
         return { ok: true, roomId: response.room.id }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося створити кімнату.')
+        const message = getErrorMessage(error, 'Could not create the room.')
         setApiError(message)
         return { ok: false, error: message }
       } finally {
@@ -432,7 +432,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomId: string): Promise<ActionResult> => {
       const currentToken = requireToken()
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       setIsLoading(true)
@@ -442,7 +442,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setApiError('')
         return { ok: true, roomId: response.room.id }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося приєднатися до кімнати.')
+        const message = getErrorMessage(error, 'Could not join the room.')
         setApiError(message)
         return { ok: false, error: message }
       } finally {
@@ -456,7 +456,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (code: string): Promise<ActionResult> => {
       const cleanCode = code.trim().toUpperCase()
       if (!cleanCode) {
-        return { ok: false, error: 'Введіть код кімнати.' }
+        return { ok: false, error: 'Enter the room code.' }
       }
 
       let room = rooms.find((currentRoom) => currentRoom.code === cleanCode)
@@ -471,7 +471,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
       }
       if (!room) {
-        return { ok: false, error: 'Код не знайдено або кімната вже недоступна.' }
+        return { ok: false, error: 'The code was not found or the room is no longer available.' }
       }
 
       return joinRoom(room.id)
@@ -483,7 +483,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomId: string): Promise<ActionResult> => {
       const currentToken = requireToken()
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       try {
@@ -493,7 +493,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         void refreshRooms()
         return { ok: true }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося вийти з кімнати.')
+        const message = getErrorMessage(error, 'Could not leave the room.')
         setApiError(message)
         return { ok: false, error: message }
       }
@@ -505,7 +505,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomId: string): Promise<ActionResult> => {
       const currentToken = requireToken()
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       setIsLoading(true)
@@ -525,7 +525,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }
         return { ok: true, roomId: response.room.id }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося почати гру.')
+        const message = getErrorMessage(error, 'Could not start the game.')
         setApiError(message)
         return { ok: false, error: message }
       } finally {
@@ -539,7 +539,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomId: string, phase: GamePhase): Promise<ActionResult> => {
       const currentToken = requireToken()
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       try {
@@ -551,7 +551,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setApiError('')
         return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося змінити фазу гри.')
+        const message = getErrorMessage(error, 'Could not change the game phase.')
         setApiError(message)
         return { ok: false, error: message }
       }
@@ -563,7 +563,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomId: string): Promise<ActionResult> => {
       const currentToken = requireToken()
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       try {
@@ -575,7 +575,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setApiError('')
         return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося перейти до наступної фази.')
+        const message = getErrorMessage(error, 'Could not move to the next phase.')
         setApiError(message)
         return { ok: false, error: message }
       }
@@ -587,7 +587,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     async (roomId: string, type: GameActionType, targetId: string): Promise<ActionResult> => {
       const currentToken = requireToken()
       if (!currentToken) {
-        return { ok: false, error: 'Сесію користувача не знайдено.' }
+        return { ok: false, error: 'User session was not found.' }
       }
 
       try {
@@ -599,7 +599,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         setApiError('')
         return { ok: true, roomId: response.game.roomId, gameId: response.game.id, game: response.game }
       } catch (error) {
-        const message = getErrorMessage(error, 'Не вдалося виконати дію.')
+        const message = getErrorMessage(error, 'Could not perform the action.')
         setApiError(message)
         return { ok: false, error: message }
       }

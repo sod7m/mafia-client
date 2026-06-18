@@ -4,6 +4,7 @@ import { BookOpen, Check, Hash, Play, Plus, RefreshCw, Users } from 'lucide-reac
 import { Modal } from '../components/Modal.tsx'
 import { SiteHeader } from '../components/SiteHeader.tsx'
 import { useGame } from '../context/GameContext.tsx'
+import { useLanguage } from '../context/useLanguage.ts'
 import { MAX_PLAYERS_IN_ROOM, MIN_PLAYERS_IN_ROOM } from '../lib/roomStatus.ts'
 import type { RoomStatus } from '../types/game.ts'
 
@@ -15,8 +16,73 @@ const statusClass: Record<RoomStatus, string> = {
   finished: 'status-finished',
 }
 
+const roomsCopy = {
+  en: {
+    refreshFailed: 'Could not refresh the room list.',
+    createFailed: 'Could not create the room.',
+    joinFailed: 'Could not join the room.',
+    startFailed: 'Could not start the room.',
+    lobby: 'Lobby',
+    refreshed: 'Updated',
+    refresh: 'Refresh',
+    rules: 'Rules',
+    hello: 'Hello',
+    pickOrCreate: 'Choose a room or create a new one',
+    createRoom: 'Create new room',
+    joinByCode: 'Join by code',
+    noRooms: 'No active rooms yet',
+    noRoomsText: 'Create the first room or join with a code.',
+    code: 'Code',
+    waiting: 'Waiting',
+    start: 'Start',
+    ownerStarts: 'The room owner starts the game',
+    createTitle: 'Create room',
+    roomName: 'Room name',
+    roomPlaceholder: 'For example, Night District',
+    playerCount: 'Players',
+    creating: 'Creating...',
+    createAndEnter: 'Create and enter',
+    joinTitle: 'Join by code',
+    roomCode: 'Room code',
+    entering: 'Entering...',
+    enterRoom: 'Enter room',
+  },
+  uk: {
+    refreshFailed: 'Не вдалося оновити список кімнат.',
+    createFailed: 'Не вдалося створити кімнату.',
+    joinFailed: 'Не вдалося приєднатися до кімнати.',
+    startFailed: 'Не вдалося запустити кімнату.',
+    lobby: 'Лобі',
+    refreshed: 'Оновлено',
+    refresh: 'Оновити',
+    rules: 'Правила',
+    hello: 'Привіт',
+    pickOrCreate: 'Оберіть кімнату або створіть нову',
+    createRoom: 'Створити нову кімнату',
+    joinByCode: 'Приєднатися по коду',
+    noRooms: 'Наразі немає активних кімнат',
+    noRoomsText: 'Створіть першу кімнату або увійдіть через код.',
+    code: 'Код',
+    waiting: 'Очікування',
+    start: 'Старт',
+    ownerStarts: 'Стартує власник кімнати',
+    createTitle: 'Створити кімнату',
+    roomName: 'Назва кімнати',
+    roomPlaceholder: 'Наприклад, Нічний квартал',
+    playerCount: 'Кількість гравців',
+    creating: 'Створення...',
+    createAndEnter: 'Створити та перейти',
+    joinTitle: 'Приєднатися по коду',
+    roomCode: 'Код кімнати',
+    entering: 'Вхід...',
+    enterRoom: 'Увійти в кімнату',
+  },
+}
+
 export function RoomsPage() {
   const navigate = useNavigate()
+  const { language } = useLanguage()
+  const copy = roomsCopy[language]
   const {
     apiError,
     availableRooms,
@@ -49,7 +115,7 @@ export function RoomsPage() {
     setError('')
     const result = await refreshRooms()
     if (!result.ok) {
-      setError(result.error ?? 'Не вдалося оновити список кімнат.')
+      setError(result.error ?? copy.refreshFailed)
       return
     }
 
@@ -70,7 +136,7 @@ export function RoomsPage() {
     const result = await createRoom(roomName, maxPlayers)
 
     if (!result.ok || !result.roomId) {
-      setError(result.error ?? 'Не вдалося створити кімнату.')
+      setError(result.error ?? copy.createFailed)
       return
     }
 
@@ -86,7 +152,7 @@ export function RoomsPage() {
     const result = await joinRoomByCode(joinCode)
 
     if (!result.ok || !result.roomId) {
-      setError(result.error ?? 'Не вдалося приєднатися до кімнати.')
+      setError(result.error ?? copy.joinFailed)
       return
     }
 
@@ -99,7 +165,7 @@ export function RoomsPage() {
   const handleJoinFromList = async (roomId: string) => {
     const result = await joinRoom(roomId)
     if (!result.ok || !result.roomId) {
-      setError(result.error ?? 'Не вдалося приєднатися до кімнати.')
+      setError(result.error ?? copy.joinFailed)
       return
     }
 
@@ -110,7 +176,7 @@ export function RoomsPage() {
   const handleForceStartFromList = async (roomId: string) => {
     const result = await startRoom(roomId)
     if (!result.ok || !result.roomId) {
-      setError(result.error ?? 'Не вдалося запустити кімнату.')
+      setError(result.error ?? copy.startFailed)
       return
     }
 
@@ -125,30 +191,29 @@ export function RoomsPage() {
         <div className="mx-auto max-w-7xl space-y-6">
         <div>
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <h1 className="text-4xl font-bold text-red-500">Лобі</h1>
+            <h1 className="text-4xl font-bold text-red-500">{copy.lobby}</h1>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={handleRefresh}
                 className="btn-base btn-outline rooms-toolbar-icon h-10 w-10 p-0"
-                title={refreshDone ? 'Оновлено' : 'Оновити'}
-                aria-label={refreshDone ? 'Оновлено' : 'Оновити'}
+                title={refreshDone ? copy.refreshed : copy.refresh}
+                aria-label={refreshDone ? copy.refreshed : copy.refresh}
               >
                 {refreshDone ? <Check className="h-5 w-5" /> : <RefreshCw className="h-5 w-5" />}
               </button>
               <Link
                 to="/rules"
                 className="btn-base btn-outline rooms-toolbar-icon h-10 w-10 p-0"
-                title="Правила"
-                aria-label="Правила"
+                title={copy.rules}
+                aria-label={copy.rules}
               >
                 <BookOpen className="h-5 w-5" />
               </Link>
             </div>
           </div>
           <p className="mt-2 text-[hsl(var(--muted-foreground))]">
-            Привіт, <span className="text-[hsl(var(--foreground))]">{user?.nickname}</span>! Оберіть кімнату або створіть
-            нову
+            {copy.hello}, <span className="text-[hsl(var(--foreground))]">{user?.nickname}</span>! {copy.pickOrCreate}
           </p>
         </div>
 
@@ -162,7 +227,7 @@ export function RoomsPage() {
             className="btn-base btn-primary px-6 py-3 text-lg"
           >
             <Plus className="h-5 w-5" />
-            Створити нову кімнату
+            {copy.createRoom}
           </button>
           <button
             type="button"
@@ -173,7 +238,7 @@ export function RoomsPage() {
             className="btn-base btn-gold px-6 py-3 text-lg"
           >
             <Hash className="h-5 w-5" />
-            Приєднатися по коду
+            {copy.joinByCode}
           </button>
         </section>
 
@@ -186,8 +251,8 @@ export function RoomsPage() {
         {availableRooms.length === 0 ? (
           <section className="surface-card rounded-2xl p-8 text-center">
             <Users className="mx-auto mb-4 h-14 w-14 text-[hsl(var(--muted-foreground))]" />
-            <h2 className="text-2xl font-bold">Наразі немає активних кімнат</h2>
-            <p className="mt-2 text-[hsl(var(--muted-foreground))]">Створіть першу кімнату або увійдіть через код.</p>
+            <h2 className="text-2xl font-bold">{copy.noRooms}</h2>
+            <p className="mt-2 text-[hsl(var(--muted-foreground))]">{copy.noRoomsText}</p>
           </section>
         ) : (
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -203,14 +268,14 @@ export function RoomsPage() {
                   <div className="space-y-4">
                     <div>
                       <h2 className="text-xl font-bold">{room.name}</h2>
-                      <p className="text-sm text-[hsl(var(--muted-foreground))]">Код: {room.code}</p>
+                      <p className="text-sm text-[hsl(var(--muted-foreground))]">{copy.code}: {room.code}</p>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="inline-flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
                         <Users className="h-4 w-4 text-[hsl(var(--muted-foreground))]" />
                         {room.players.length} / {room.maxPlayers}
                       </div>
-                      <span className={`status-pill ${statusClass[room.status]}`}>Очікування</span>
+                      <span className={`status-pill ${statusClass[room.status]}`}>{copy.waiting}</span>
                     </div>
                     {isRoomOwner ? (
                       <button
@@ -223,11 +288,11 @@ export function RoomsPage() {
                         className="btn-base btn-primary btn-room w-full px-4 py-3 text-sm disabled:pointer-events-none disabled:opacity-45"
                       >
                         <Play className="h-4 w-4" />
-                        Старт
+                        {copy.start}
                       </button>
                     ) : (
                       <p className="rounded-lg bg-white/5 px-3 py-2 text-sm font-semibold text-[hsl(var(--muted-foreground))]">
-                        Стартує власник кімнати
+                        {copy.ownerStarts}
                       </p>
                     )}
                   </div>
@@ -239,11 +304,11 @@ export function RoomsPage() {
         </div>
       </div>
 
-      <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Створити кімнату">
+      <Modal open={createModalOpen} onClose={() => setCreateModalOpen(false)} title={copy.createTitle}>
         <form className="space-y-4" onSubmit={handleCreateRoom}>
           <div>
             <label htmlFor="roomName" className="block text-sm text-[hsl(var(--muted-foreground))]">
-              Назва кімнати
+              {copy.roomName}
             </label>
             <input
               id="roomName"
@@ -252,13 +317,13 @@ export function RoomsPage() {
               maxLength={40}
               onChange={(event) => setRoomName(event.target.value)}
               className="mt-1 w-full rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-2 text-white outline-none transition focus:border-red-500"
-              placeholder="Наприклад, Нічний квартал"
+              placeholder={copy.roomPlaceholder}
             />
           </div>
 
           <div>
             <label htmlFor="maxPlayers" className="block text-sm text-[hsl(var(--muted-foreground))]">
-              Кількість гравців: {maxPlayers}
+              {copy.playerCount}: {maxPlayers}
             </label>
             <input
               id="maxPlayers"
@@ -280,16 +345,16 @@ export function RoomsPage() {
             disabled={isLoading}
             className="btn-base btn-primary w-full px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
           >
-            {isLoading ? 'Створення...' : 'Створити та перейти'}
+            {isLoading ? copy.creating : copy.createAndEnter}
           </button>
         </form>
       </Modal>
 
-      <Modal open={joinModalOpen} onClose={() => setJoinModalOpen(false)} title="Приєднатися по коду">
+      <Modal open={joinModalOpen} onClose={() => setJoinModalOpen(false)} title={copy.joinTitle}>
         <form className="space-y-4" onSubmit={handleJoinByCode}>
           <div>
             <label htmlFor="joinCode" className="block text-sm text-[hsl(var(--muted-foreground))]">
-              Код кімнати
+              {copy.roomCode}
             </label>
             <input
               id="joinCode"
@@ -308,7 +373,7 @@ export function RoomsPage() {
             className="btn-base btn-gold w-full px-4 py-2 text-sm disabled:pointer-events-none disabled:opacity-60"
           >
             <Hash className="h-4 w-4" />
-            {isLoading ? 'Вхід...' : 'Увійти в кімнату'}
+            {isLoading ? copy.entering : copy.enterRoom}
           </button>
         </form>
       </Modal>

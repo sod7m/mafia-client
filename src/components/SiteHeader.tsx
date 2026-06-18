@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Skull } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
+import { useLanguage } from '../context/useLanguage.ts'
+import { LanguageToggle } from './LanguageToggle.tsx'
 
 interface SiteHeaderProps {
   fixed?: boolean
@@ -18,8 +19,9 @@ export function SiteHeader({
 }: SiteHeaderProps) {
   const navigate = useNavigate()
   const { user, logout } = useGame()
+  const { language } = useLanguage()
   const [isScrolled, setIsScrolled] = useState(false)
-  const resolvedPrimaryLabel = primaryLabel ?? (user ? 'LOGOUT' : 'PLAY NOW')
+  const resolvedPrimaryLabel = primaryLabel ?? (user ? (language === 'uk' ? 'ВИЙТИ' : 'LOGOUT') : language === 'uk' ? 'ГРАТИ' : 'PLAY NOW')
 
   useEffect(() => {
     if (!transparentOnScroll) {
@@ -63,13 +65,15 @@ export function SiteHeader({
     <header className={headerClassName}>
       <div className="site-topbar-inner">
         <Link to="/" className="site-topbar-brand">
-          <Skull className="h-4 w-4" />
-          MAFIA
+          OMERTA
         </Link>
 
-        <button type="button" onClick={handlePrimaryClick} className="site-topbar-cta">
-          {resolvedPrimaryLabel}
-        </button>
+        <div className="flex items-center gap-3">
+          <LanguageToggle />
+          <button type="button" onClick={handlePrimaryClick} className="site-topbar-cta">
+            {resolvedPrimaryLabel}
+          </button>
+        </div>
       </div>
     </header>
   )
