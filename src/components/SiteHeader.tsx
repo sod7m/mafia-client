@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Skull } from 'lucide-react'
 import { useGame } from '../context/GameContext.tsx'
 import { useLanguage } from '../context/useLanguage.ts'
 import { LanguageToggle } from './LanguageToggle.tsx'
@@ -66,7 +65,6 @@ export function SiteHeader({
     <header className={headerClassName}>
       <div className="site-topbar-inner">
         <Link to="/" className="site-topbar-brand">
-          <Skull className="h-4 w-4" />
           OMERTA
         </Link>
 

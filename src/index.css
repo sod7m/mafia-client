@@ -308,6 +308,9 @@ a {
   border-radius: 0.4rem;
   background: var(--gradient-primary);
   color: hsl(var(--foreground));
+  display: inline-flex;
+  min-width: 8.1rem;
+  justify-content: center;
   box-shadow: var(--shadow-glow);
   padding: 0.78rem 1.5rem;
   font-size: 0.92rem;

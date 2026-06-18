@@ -16,7 +16,6 @@ import {
   ShieldBan,
   ShieldCheck,
   ShieldQuestion,
-  Skull,
   Sun,
   Trophy,
   Users,
@@ -1300,7 +1299,6 @@ function GameRoom() {
 
       <header className={cx('grid h-16 shrink-0 grid-cols-[minmax(8rem,1fr)_auto_minmax(8rem,1fr)] items-center gap-4 border-b bg-black/80 px-6 max-lg:h-auto max-lg:grid-cols-[1fr_auto] max-lg:gap-2 max-lg:p-3', theme.border)}>
         <Link to="/" className="inline-flex w-fit items-center gap-2 text-2xl font-extrabold tracking-[0.08em] text-[hsl(var(--secondary))] max-lg:order-1 max-lg:text-xl">
-          <Skull className="h-4 w-4" />
           OMERTA
         </Link>
 
