@@ -467,7 +467,7 @@ export function HomePage() {
           <div className="mb-12 grid gap-5 md:grid-cols-3">
             {copy.phases.map(({ icon: Icon, title, description, tone }, index) => (
               <article
-                key={title}
+                key={`phase-${tone}-${index}`}
                 className={`surface-card premium-card phase-card scroll-reveal reveal-from-bottom reveal-delay-${index + 1} rounded-2xl p-6 text-center ${toneClassNames[tone].card}`}
               >
                 <div className="mb-4 flex justify-center">
@@ -486,7 +486,7 @@ export function HomePage() {
             <div className="grid gap-5 md:grid-cols-3">
               {copy.roles.map(({ icon: Icon, title, description, tone }, index) => (
                 <article
-                  key={title}
+                  key={`role-${tone}-${index}`}
                   className={`${toneClassNames[tone].border} premium-card scroll-reveal ${index % 2 === 0 ? 'reveal-from-left' : 'reveal-from-right'} reveal-delay-${index + 1}`}
                 >
                   <div className="role-card-icon">
@@ -506,7 +506,7 @@ export function HomePage() {
             <div className="grid gap-7 md:grid-cols-2">
               {copy.victories.map(({ icon: Icon, title, description, tone }, index) => (
                 <article
-                  key={title}
+                  key={`victory-${tone}-${index}`}
                   className={`scroll-reveal ${index % 2 === 0 ? 'reveal-from-left' : 'reveal-from-right'} reveal-delay-${index + 1} flex items-start gap-4`}
                 >
                   <div className={toneClassNames[tone].miniBubble}>
